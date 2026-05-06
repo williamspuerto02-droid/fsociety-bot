@@ -7713,8 +7713,19 @@ function isPairingQrFallbackActive(botState) {
   return Boolean(until && until > Date.now());
 }
 
+function preferQrFirstMode() {
+  const raw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  if (!raw) return true;
+  if (["code", "pairing", "phone", "legacy"].includes(raw)) return false;
+  return true;
+}
+
 function shouldAutoRequestPairingCode(botState) {
   if (!ownsBotInThisProcess(botState?.config?.id)) {
+    return false;
+  }
+
+  if (preferQrFirstMode()) {
     return false;
   }
 
@@ -9800,12 +9811,11 @@ async function iniciarInstanciaBot(config) {
           await requestPairingCodeSafe(botState);
         }
 
-        if (qr && isPairingQrFallbackActive(botState) && shouldShowPairingNotice(botState, 15000)) {
-          logBotEvent(
-            botState,
-            "warn",
-            "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
-          );
+        if (qr && shouldShowPairingNotice(botState, 15000)) {
+          const qrHint = isPairingQrFallbackActive(botState)
+            ? "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
+            : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
+          logBotEvent(botState, "warn", qrHint);
           try {
             const qrcodeTerminal = await import("qrcode-terminal");
             const renderer = qrcodeTerminal?.default || qrcodeTerminal;
