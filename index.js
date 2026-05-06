@@ -8240,9 +8240,13 @@ async function syncManagedProcessBots() {
   for (const config of getManagedProcessBotConfigs()) {
     try {
       const botState = ensureBotState(config);
+      const runtimePairingNumber = sanitizePhoneNumber(botState?.config?.pairingNumber || "");
       botState.config = {
         ...botState.config,
         ...config,
+        // Preserve runtime-entered pairing number when settings/config does not provide one yet.
+        pairingNumber:
+          sanitizePhoneNumber(config?.pairingNumber || "") || runtimePairingNumber || "",
       };
 
       const startDecision = evaluateManagedProcessStartDecision(config, { botState });
