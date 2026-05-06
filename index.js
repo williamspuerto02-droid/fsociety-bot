@@ -9754,7 +9754,7 @@ async function iniciarInstanciaBot(config) {
 
     const socketConfig = {
       logger,
-      printQRInTerminal: isPairingQrFallbackActive(botState),
+      printQRInTerminal: preferQrFirstMode() || isPairingQrFallbackActive(botState),
       markOnlineOnConnect: false,
       browser: FIXED_BROWSER,
       defaultQueryTimeoutMs: undefined,
@@ -10084,16 +10084,29 @@ async function iniciarInstanciaBot(config) {
             writePersistedBotRuntimeState(botState);
 
             if (!silencePreLinkLogs) {
-              logBotEvent(
-                botState,
-                "warn",
-                `WhatsApp devolvio 405. Reintentare conexion luego de ${waitMin} min para evitar mas bloqueos.`
-              );
-              logBotEvent(
-                botState,
-                "warn",
-                "Activando modo QR temporal. Usa escaneo QR en este periodo para vincular."
-              );
+              if (shouldHardStopOnPreLink405(botState)) {
+                logBotEvent(
+                  botState,
+                  "warn",
+                  `WhatsApp rechazo la vinculacion con 405. Pausare el inicio por ${waitMin} min para proteger la cuenta.`
+                );
+                logBotEvent(
+                  botState,
+                  "warn",
+                  "No se recibio QR ni codigo valido: WhatsApp cerro la conexion antes del paso de vinculacion."
+                );
+              } else {
+                logBotEvent(
+                  botState,
+                  "warn",
+                  `WhatsApp devolvio 405. Reintentare conexion luego de ${waitMin} min para evitar mas bloqueos.`
+                );
+                logBotEvent(
+                  botState,
+                  "warn",
+                  "Activando modo QR temporal. Usa escaneo QR en este periodo para vincular."
+                );
+              }
             }
 
             if (shouldHardStopOnPreLink405(botState)) {
