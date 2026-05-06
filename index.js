@@ -138,9 +138,12 @@ const DEFAULT_PAIRING_COUNTRY_CODE = String(
   .slice(0, 4);
 const logger = pino({ level: "silent" });
 const FIXED_BROWSER =
-  (typeof baileys?.Browsers?.macOS === "function" &&
-    baileys.Browsers.macOS("Google Chrome")) ||
-  ["Mac OS", "Google Chrome", "14.4.1"];
+  (Array.isArray(DEFAULT_CONNECTION_CONFIG?.browser) &&
+    DEFAULT_CONNECTION_CONFIG.browser.length >= 3 &&
+    DEFAULT_CONNECTION_CONFIG.browser) ||
+  (typeof baileys?.Browsers?.windows === "function" &&
+    baileys.Browsers.windows("Chrome")) ||
+  ["Windows", "Chrome", "10.0.22631"];
 const FALLBACK_BAILEYS_VERSION = (() => {
   const version = DEFAULT_CONNECTION_CONFIG?.version;
   if (
