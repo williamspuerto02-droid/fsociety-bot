@@ -137,13 +137,7 @@ const DEFAULT_PAIRING_COUNTRY_CODE = String(
   .replace(/\D/g, "")
   .slice(0, 4);
 const logger = pino({ level: "silent" });
-const FIXED_BROWSER =
-  (Array.isArray(DEFAULT_CONNECTION_CONFIG?.browser) &&
-    DEFAULT_CONNECTION_CONFIG.browser.length >= 3 &&
-    DEFAULT_CONNECTION_CONFIG.browser) ||
-  (typeof baileys?.Browsers?.windows === "function" &&
-    baileys.Browsers.windows("Chrome")) ||
-  ["Windows", "Chrome", "10.0.22631"];
+const FIXED_BROWSER = ["Windows", "Chrome"];
 const FALLBACK_BAILEYS_VERSION = (() => {
   const version = DEFAULT_CONNECTION_CONFIG?.version;
   if (
@@ -2373,11 +2367,11 @@ function getStoreContactName(botState, ...ids) {
 
 async function getVersionSafe() {
   const fallbackVersion = [...FALLBACK_BAILEYS_VERSION];
-  const forceLatest =
+  const skipLatest =
     String(process.env.BAILEYS_FORCE_LATEST_VERSION || "")
       .trim()
-      .toLowerCase() === "1";
-  if (!forceLatest) {
+      .toLowerCase() === "0";
+  if (skipLatest) {
     return fallbackVersion;
   }
 
@@ -7169,6 +7163,14 @@ function resetPairingCache(botState) {
   writePersistedBotRuntimeState(botState);
 }
 
+function hasRecentPairingCode(botState, windowMs = 2 * 60 * 1000) {
+  return Boolean(
+    botState?.lastPairingCode &&
+      Number(botState?.lastPairingAt || 0) &&
+      Date.now() - Number(botState.lastPairingAt || 0) <= Math.max(30_000, Number(windowMs || 0))
+  );
+}
+
 function cachePairingCode(botState, code, number) {
   clearPairingResetTimer(botState);
   clearPairingSocketRetryTimer(botState);
@@ -10024,6 +10026,7 @@ async function iniciarInstanciaBot(config) {
             code === 440 || code === DisconnectReason.connectionReplaced;
           const restartRequired = code === DisconnectReason.restartRequired;
           const pairingRejected405 = Number(code || 0) === 405;
+          const hadRecentPairingCode = hasRecentPairingCode(botState);
 
           if (loggedOut) {
             removeAuthFolder(config.authFolder);
@@ -10041,7 +10044,7 @@ async function iniciarInstanciaBot(config) {
           abortActiveDownloadJobs(botState, `connection_closed:${code || "unknown"}`);
           abortActiveCommand(botState, `connection_closed:${code || "unknown"}`);
           resetPairingCache(botState);
-          if (pairingRejected405) {
+          if (pairingRejected405 && !hadRecentPairingCode) {
             botState.pairingCooldownUntil = Date.now() + PAIRING_405_COOLDOWN_MS;
             botState.pairingCooldownReason = "close_code_405";
             botState.pairingQrFallbackUntil = Date.now() + PAIRING_QR_FALLBACK_MS;
@@ -10081,6 +10084,23 @@ async function iniciarInstanciaBot(config) {
           if (restartRequired) {
             botState.reconnectAttempts = 0;
             scheduleReconnect(botState, 1200, "restart_required");
+            return;
+          }
+
+          if (pairingRejected405 && hadRecentPairingCode && !isBotRegistered(botState)) {
+            botState.reconnectAttempts = 0;
+            botState.pairingCooldownUntil = 0;
+            botState.pairingCooldownReason = "";
+            botState.pairingQrFallbackUntil = 0;
+            writePersistedBotRuntimeState(botState, { immediate: true });
+            if (!silencePreLinkLogs) {
+              logBotEvent(
+                botState,
+                "warn",
+                "Codigo generado; reconectare en 3s para completar la sesion como flujo KANTU."
+              );
+            }
+            scheduleReconnect(botState, 3000, "pairing_code_405_retry");
             return;
           }
 

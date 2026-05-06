@@ -1,11 +1,13 @@
 import fs from "fs";
 import path from "path";
 import dns from "dns/promises";
-import baileys from "@dvyer/baileys";
+import * as baileysModule from "@dvyer/baileys";
+
+const baileys = baileysModule?.default?.fetchLatestBaileysVersion
+  ? baileysModule.default
+  : baileysModule;
 
 const {
-  DEFAULT_CONNECTION_CONFIG,
-  Browsers,
   fetchLatestBaileysVersion,
 } = baileys;
 
@@ -86,11 +88,7 @@ async function main() {
   const publicIp = await getPublicIp();
   const webWhatsapp = await lookupHost("web.whatsapp.com");
   const staticWhatsapp = await lookupHost("static.whatsapp.net");
-  const browser =
-    (Array.isArray(DEFAULT_CONNECTION_CONFIG?.browser) &&
-      DEFAULT_CONNECTION_CONFIG.browser.join(" / ")) ||
-    Browsers?.windows?.("Chrome")?.join(" / ") ||
-    "desconocido";
+  const browser = "Windows / Chrome (socket efectivo)";
 
   console.log("FSOCIETY pairing diagnostic");
   console.log("");
