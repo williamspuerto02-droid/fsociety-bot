@@ -7804,6 +7804,10 @@ function shouldWaitMainNumberBeforeConnect(botState) {
     return false;
   }
 
+  if (isPreLink405Paused(botState)) {
+    return false;
+  }
+
   if (isBotRegistered(botState)) {
     return false;
   }
@@ -8391,6 +8395,17 @@ async function requestPairingCode(botState, options = {}) {
       ok: false,
       status: "already_linked",
       message: `${botState.config.displayName} ya esta vinculado.`,
+    };
+  }
+
+  if (isPreLink405Paused(botState)) {
+    const waitMs = Math.max(1000, Number(botState?.pairingCooldownUntil || 0) - Date.now());
+    return {
+      ok: false,
+      status: "cooldown_405",
+      message:
+        `WhatsApp rechazo este intento recientemente (405). ` +
+        `Espera aprox ${Math.ceil(waitMs / 60000)} min antes de volver a pedir codigo.`,
     };
   }
 
