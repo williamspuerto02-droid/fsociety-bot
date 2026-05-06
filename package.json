@@ -18,7 +18,7 @@
     "pm2:restart": "pm2 restart ecosystem.config.cjs"
   },
   "dependencies": {
-    "@dvyer/baileys": "github:DevYerZx/Baileys-dvvyerMD#main",
+    "@dvyer/baileys": "github:DevYerZx/Baileys-dvvyerMD#d257a3d233d18360459264eca9c3b95106652f0d",
     "axios": "^1.16.0",
     "bytenode": "^1.5.7",
     "chalk": "^4.1.2",
