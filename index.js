@@ -7716,6 +7716,22 @@ function shouldAutoRequestPairingCode(botState) {
   return Boolean(sanitizePhoneNumber(botState?.config?.pairingNumber));
 }
 
+function shouldWaitMainNumberBeforeConnect(botState) {
+  if (!botState || String(botState?.config?.id || "").trim().toLowerCase() !== "main") {
+    return false;
+  }
+
+  if (isBotRegistered(botState)) {
+    return false;
+  }
+
+  if (!shouldPromptInConsole(botState)) {
+    return false;
+  }
+
+  return !sanitizePhoneNumber(botState?.config?.pairingNumber);
+}
+
 function getMainBotState() {
   return botStates.get("main") || null;
 }
@@ -8182,6 +8198,14 @@ async function syncManagedProcessBots() {
         !botState.connecting
       ) {
         botState.connectionState = "waiting_secondary_queue";
+        writePersistedBotRuntimeState(botState);
+        continue;
+      }
+
+      if (shouldWaitMainNumberBeforeConnect(botState)) {
+        if (!botState.pairingRequested) {
+          await requestPairingCodeSafe(botState);
+        }
         writePersistedBotRuntimeState(botState);
         continue;
       }
