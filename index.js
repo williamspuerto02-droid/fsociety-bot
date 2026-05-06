@@ -2903,7 +2903,16 @@ function readPersistedBotRuntimeState(botId) {
     const state = safeReadJson(getBotRuntimeStateFile(botId), null);
     if (!state || typeof state !== "object") return null;
     const updatedAt = Number(state.updatedAt || 0);
-    if (!updatedAt || Date.now() - updatedAt > BOT_RUNTIME_STATE_TTL_MS) {
+    const pairingCooldownUntil = Number(state.pairingCooldownUntil || 0);
+    const keepPairingCooldownState =
+      Number(state.lastDisconnectCode || 0) === 405 &&
+      pairingCooldownUntil &&
+      pairingCooldownUntil > Date.now();
+
+    if (
+      !keepPairingCooldownState &&
+      (!updatedAt || Date.now() - updatedAt > BOT_RUNTIME_STATE_TTL_MS)
+    ) {
       return null;
     }
     return state;
@@ -4068,6 +4077,7 @@ function ensureBotState(config) {
     return existing;
   }
 
+  const persistedState = readPersistedBotRuntimeState(config.id);
   const state = {
     config,
     sock: null,
@@ -4144,6 +4154,18 @@ function ensureBotState(config) {
     lastManagedStopDecisionReason: "",
     lastManagedStopDecisionAt: 0,
   };
+
+  if (persistedState) {
+    state.connectedAt = Number(persistedState.connectedAt || 0);
+    state.lastDisconnectAt = Number(persistedState.lastDisconnectAt || 0);
+    state.lastDisconnectCode = Number(persistedState.lastDisconnectCode || 0);
+    state.connectionState = String(persistedState.connectionState || "");
+    state.lastSocketEventAt = Number(persistedState.lastSocketEventAt || 0);
+    state.lastSocketEvent = String(persistedState.lastSocketEvent || "");
+    state.pairingCooldownUntil = Number(persistedState.pairingCooldownUntil || 0);
+    state.pairingCooldownReason = String(persistedState.pairingCooldownReason || "");
+    state.pairingQrFallbackUntil = Number(persistedState.pairingQrFallbackUntil || 0);
+  }
 
   botStates.set(config.id, state);
   return state;
@@ -7730,6 +7752,29 @@ function shouldHardStopOnPreLink405(botState) {
   return !["0", "false", "off", "no"].includes(raw);
 }
 
+function shouldResetAuthOnPreLink405(botState) {
+  if (String(botState?.config?.id || "").trim().toLowerCase() !== "main") {
+    return false;
+  }
+  const raw = String(process.env.PAIRING_405_RESET_AUTH || "1")
+    .trim()
+    .toLowerCase();
+  return !["0", "false", "off", "no"].includes(raw);
+}
+
+function isPreLink405Paused(botState) {
+  if (!botState || isBotRegistered(botState)) {
+    return false;
+  }
+
+  const state = String(botState.connectionState || "")
+    .trim()
+    .toLowerCase();
+  const code = Number(botState.lastDisconnectCode || 0);
+  const cooldownActive = isPairingCooldownActive(botState);
+  return cooldownActive && (state === "paused_405" || code === 405);
+}
+
 function shouldAutoRequestPairingCode(botState) {
   if (!ownsBotInThisProcess(botState?.config?.id)) {
     return false;
@@ -7830,6 +7875,10 @@ function evaluateManagedProcessStartDecision(config = {}, options = {}) {
   const botState = options?.botState || botStates.get(config.id) || null;
   if (isReplacementBlocked(botState)) {
     return { start: false, reason: "replacement_blocked_memory" };
+  }
+
+  if (isPreLink405Paused(botState) && shouldHardStopOnPreLink405(botState)) {
+    return { start: false, reason: "pairing_405_paused" };
   }
 
   if (isPersistedReplacementBlocked(config.id)) {
@@ -8494,7 +8543,19 @@ async function requestPairingCode(botState, options = {}) {
       botState.pairingQrFallbackUntil = Date.now() + PAIRING_QR_FALLBACK_MS;
       botState.pairingCommandHintShown = false;
       botState.pairingRequested = false;
-      writePersistedBotRuntimeState(botState);
+      if (shouldHardStopOnPreLink405(botState)) {
+        botState.connectionState = "paused_405";
+        botState.lastDisconnectCode = 405;
+      }
+      if (shouldResetAuthOnPreLink405(botState)) {
+        try {
+          botState.sock?.end?.();
+        } catch {}
+        removeAuthFolder(botState.config?.authFolder);
+        botState.authState = null;
+        botState.sock = null;
+      }
+      writePersistedBotRuntimeState(botState, { immediate: true });
       return {
         ok: false,
         status: "cooldown_405",
@@ -9669,6 +9730,16 @@ async function handleIncomingMessages(botState, sock, messages) {
 
 async function iniciarInstanciaBot(config) {
   const botState = ensureBotState(config);
+  if (isPreLink405Paused(botState) && shouldHardStopOnPreLink405(botState)) {
+    const waitMs = Math.max(1000, Number(botState.pairingCooldownUntil || 0) - Date.now());
+    logBotEvent(
+      botState,
+      "warn",
+      `Inicio bloqueado por 405 temporal. Espera aprox ${Math.ceil(waitMs / 60000)} min.`
+    );
+    return;
+  }
+
   if (botState.connecting) return;
   botState.connecting = true;
   botState.bootStartedAt = Date.now();
@@ -9960,8 +10031,14 @@ async function iniciarInstanciaBot(config) {
             botState.pairingCooldownReason = "close_code_405";
             botState.pairingQrFallbackUntil = Date.now() + PAIRING_QR_FALLBACK_MS;
             botState.pairingCommandHintShown = false;
+            if (!isBotRegistered(botState) && shouldResetAuthOnPreLink405(botState)) {
+              removeAuthFolder(config.authFolder);
+              botState.authState = null;
+            }
           }
-          writePersistedBotRuntimeState(botState);
+          writePersistedBotRuntimeState(botState, {
+            immediate: pairingRejected405,
+          });
 
           if (botState.config?.id !== "main" && loggedOut) {
             releaseSubbotSlot(botState, {
@@ -10022,7 +10099,8 @@ async function iniciarInstanciaBot(config) {
             if (shouldHardStopOnPreLink405(botState)) {
               botState.connectionState = "paused_405";
               clearReconnectTimer(botState);
-              writePersistedBotRuntimeState(botState);
+              clearSocketRecoveryTimer(botState);
+              writePersistedBotRuntimeState(botState, { immediate: true });
               if (!silencePreLinkLogs) {
                 logBotEvent(
                   botState,
