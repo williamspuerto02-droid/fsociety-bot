@@ -7720,6 +7720,16 @@ function preferQrFirstMode() {
   return true;
 }
 
+function shouldHardStopOnPreLink405(botState) {
+  if (String(botState?.config?.id || "").trim().toLowerCase() !== "main") {
+    return false;
+  }
+  const raw = String(process.env.PAIRING_405_HARD_STOP || "1")
+    .trim()
+    .toLowerCase();
+  return !["0", "false", "off", "no"].includes(raw);
+}
+
 function shouldAutoRequestPairingCode(botState) {
   if (!ownsBotInThisProcess(botState?.config?.id)) {
     return false;
@@ -10007,6 +10017,25 @@ async function iniciarInstanciaBot(config) {
                 "warn",
                 "Activando modo QR temporal. Usa escaneo QR en este periodo para vincular."
               );
+            }
+
+            if (shouldHardStopOnPreLink405(botState)) {
+              botState.connectionState = "paused_405";
+              clearReconnectTimer(botState);
+              writePersistedBotRuntimeState(botState);
+              if (!silencePreLinkLogs) {
+                logBotEvent(
+                  botState,
+                  "warn",
+                  "Pausa de seguridad activada: no reconectare en automatico tras 405 pre-vinculacion."
+                );
+                logBotEvent(
+                  botState,
+                  "warn",
+                  "Espera 40 min, cambia IP/red (si es posible) y reinicia manualmente el bot."
+                );
+              }
+              return;
             }
 
             scheduleReconnect(botState, waitMs, "pairing_405_cooldown");
