@@ -8231,6 +8231,22 @@ async function syncManagedProcessBots() {
       }
 
       if (shouldWaitMainNumberBeforeConnect(botState)) {
+        if (preferQrFirstMode()) {
+          if (!botState.pairingCommandHintShown) {
+            botState.pairingCommandHintShown = true;
+            logBotEvent(
+              botState,
+              "info",
+              "Modo QR-first activo: no solicitare codigo numerico automaticamente."
+            );
+          }
+          if (!botState.sock && !botState.connecting && !botState.reconnectTimer) {
+            await iniciarInstanciaBot(botState.config);
+          }
+          writePersistedBotRuntimeState(botState);
+          continue;
+        }
+
         if (!botState.pairingRequested) {
           await requestPairingCodeSafe(botState);
         }
