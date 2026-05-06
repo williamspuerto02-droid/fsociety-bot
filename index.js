@@ -8488,6 +8488,9 @@ async function requestPairingCode(botState, options = {}) {
   // Persistimos el numero tan pronto sea valido para evitar pedirlo en bucle
   // cuando el socket todavia no termina de inicializar.
   botState.config.pairingNumber = resolvedNumber;
+  if (botState?.config?.id === "main") {
+    saveMainBotPairingNumber(resolvedNumber);
+  }
 
   if (botState.pairingRequested && !botState.lastPairingCode) {
     return {
