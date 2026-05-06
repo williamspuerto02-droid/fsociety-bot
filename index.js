@@ -4546,10 +4546,24 @@ function clearSocketRecoveryTimer(botState) {
 }
 
 function removeAuthFolder(authFolder) {
-  if (!String(authFolder || "").trim()) return;
+  const target = String(authFolder || "").trim();
+  if (!target) return;
 
   try {
-    fs.rmSync(authFolder, { recursive: true, force: true });
+    fs.rmSync(target, { recursive: true, force: true });
+  } catch {}
+
+  // Keep base auth directory present to avoid ENOENT races while Baileys saves creds.
+  try {
+    fs.mkdirSync(target, { recursive: true });
+  } catch {}
+}
+
+function ensureAuthFolderExists(authFolder) {
+  const target = String(authFolder || "").trim();
+  if (!target) return;
+  try {
+    fs.mkdirSync(target, { recursive: true });
   } catch {}
 }
 
@@ -9771,6 +9785,7 @@ async function iniciarInstanciaBot(config) {
   markBotSocketActivity(botState, "booting");
 
   try {
+    ensureAuthFolderExists(config.authFolder);
     const { state: authState, saveCreds } = await useMultiFileAuthState(
       config.authFolder
     );
