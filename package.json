@@ -18,6 +18,7 @@
     "pm2:restart": "pm2 restart ecosystem.config.cjs"
   },
   "dependencies": {
+    "@adiwajshing/keyed-db": "^0.2.4",
     "@dvyer/baileys": "github:dvwilker/DvwilkerBail#main",
     "axios": "^1.16.0",
     "bytenode": "^1.5.7",
