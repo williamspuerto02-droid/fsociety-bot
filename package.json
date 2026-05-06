@@ -17,7 +17,7 @@
     "pm2:restart": "pm2 restart ecosystem.config.cjs"
   },
   "dependencies": {
-    "@dvyer/baileys": "git+https://github.com/DevYerZx/Baileys-dvvyerMD.git#main",
+    "@dvyer/baileys": "github:DevYerZx/Baileys-dvvyerMD#main",
     "axios": "^1.16.0",
     "bytenode": "^1.5.7",
     "chalk": "^4.1.2",
@@ -27,6 +27,7 @@
     "pino": "^9.13.1",
     "play-dl": "^1.9.7",
     "punycode": "^2.3.1",
+    "qrcode-terminal": "^0.12.0",
     "yt-search": "^2.10.4"
   },
   "overrides": {

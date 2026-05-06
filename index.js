@@ -109,6 +109,7 @@ const HOOK_TIMEOUT_MS = 20 * 1000;
 const PAIRING_SOCKET_WAIT_MS = 15 * 1000;
 const PAIRING_REQUEST_TIMEOUT_MS = 25 * 1000;
 const PAIRING_405_COOLDOWN_MS = 40 * 60 * 1000;
+const PAIRING_QR_FALLBACK_MS = 60 * 60 * 1000;
 const BOT_HEALTHCHECK_INTERVAL_MS = 30 * 1000;
 const BOT_CONNECTING_STALE_MS = 2 * 60 * 1000;
 const BOT_PAIRING_STALE_MS = 2 * 60 * 1000;
@@ -4110,6 +4111,7 @@ function ensureBotState(config) {
     lastPairingError: "",
     pairingCooldownUntil: 0,
     pairingCooldownReason: "",
+    pairingQrFallbackUntil: 0,
     hasOpenedSession: false,
     lastCommandName: "",
     lastCommandStartedAt: 0,
@@ -7254,6 +7256,7 @@ function summarizeBotState(botState) {
     lastPairingError: String(botState?.lastPairingError || ""),
     pairingCooldownUntil: Number(botState?.pairingCooldownUntil || 0),
     pairingCooldownReason: String(botState?.pairingCooldownReason || ""),
+    pairingQrFallbackUntil: Number(botState?.pairingQrFallbackUntil || 0),
     lastCommandName: String(botState?.lastCommandName || ""),
     lastCommandStartedAt: Number(botState?.lastCommandStartedAt || 0),
     lastCommandFinishedAt: Number(botState?.lastCommandFinishedAt || 0),
@@ -7336,6 +7339,7 @@ function summarizeBotConfig(config) {
       lastPairingError: String(persistedState.lastPairingError || ""),
       pairingCooldownUntil: Number(persistedState.pairingCooldownUntil || 0),
       pairingCooldownReason: String(persistedState.pairingCooldownReason || ""),
+      pairingQrFallbackUntil: Number(persistedState.pairingQrFallbackUntil || 0),
       lastCommandName: String(persistedState.lastCommandName || ""),
       lastCommandStartedAt: Number(persistedState.lastCommandStartedAt || 0),
       lastCommandFinishedAt: Number(persistedState.lastCommandFinishedAt || 0),
@@ -7391,6 +7395,7 @@ function summarizeBotConfig(config) {
     lastPairingError: "",
     pairingCooldownUntil: 0,
     pairingCooldownReason: "",
+    pairingQrFallbackUntil: 0,
     lastCommandName: "",
     lastCommandStartedAt: 0,
     lastCommandFinishedAt: 0,
@@ -7700,8 +7705,17 @@ function isPairingCooldownActive(botState) {
   return Boolean(until && until > Date.now());
 }
 
+function isPairingQrFallbackActive(botState) {
+  const until = Number(botState?.pairingQrFallbackUntil || 0);
+  return Boolean(until && until > Date.now());
+}
+
 function shouldAutoRequestPairingCode(botState) {
   if (!ownsBotInThisProcess(botState?.config?.id)) {
+    return false;
+  }
+
+  if (isPairingQrFallbackActive(botState)) {
     return false;
   }
 
@@ -8409,6 +8423,7 @@ async function requestPairingCode(botState, options = {}) {
       PAIRING_REQUEST_TIMEOUT_MS,
       () => sock.requestPairingCode(resolvedNumber)
     );
+    botState.pairingQrFallbackUntil = 0;
     cachePairingCode(botState, code, resolvedNumber);
 
     return {
@@ -8436,6 +8451,7 @@ async function requestPairingCode(botState, options = {}) {
     if (pairingRejected405) {
       botState.pairingCooldownUntil = Date.now() + PAIRING_405_COOLDOWN_MS;
       botState.pairingCooldownReason = "request_pairing_405";
+      botState.pairingQrFallbackUntil = Date.now() + PAIRING_QR_FALLBACK_MS;
       botState.pairingCommandHintShown = false;
       botState.pairingRequested = false;
       writePersistedBotRuntimeState(botState);
@@ -8612,6 +8628,11 @@ async function requestPairingCodeSafe(botState) {
     if (!botState.pairingCommandHintShown || shouldShowPairingNotice(botState, 30000)) {
       botState.pairingCommandHintShown = true;
       console.log(`${getBotTag(botState)} ${result.message}`);
+      if (isPairingQrFallbackActive(botState)) {
+        console.log(
+          `${getBotTag(botState)} Modo QR activo temporalmente. Espera el QR en consola para vincular por escaneo.`
+        );
+      }
     }
     return;
   }
@@ -9622,7 +9643,7 @@ async function iniciarInstanciaBot(config) {
 
     const socketConfig = {
       logger,
-      printQRInTerminal: false,
+      printQRInTerminal: isPairingQrFallbackActive(botState),
       markOnlineOnConnect: false,
       browser: FIXED_BROWSER,
       defaultQueryTimeoutMs: undefined,
@@ -9776,6 +9797,19 @@ async function iniciarInstanciaBot(config) {
           await requestPairingCodeSafe(botState);
         }
 
+        if (qr && isPairingQrFallbackActive(botState) && shouldShowPairingNotice(botState, 15000)) {
+          logBotEvent(
+            botState,
+            "warn",
+            "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
+          );
+          try {
+            const qrcodeTerminal = await import("qrcode-terminal");
+            const renderer = qrcodeTerminal?.default || qrcodeTerminal;
+            renderer?.generate?.(qr, { small: true });
+          } catch {}
+        }
+
         if (connection === "connecting") {
           const now = Date.now();
           if (now - Number(botState.lastConnectingLogAt || 0) >= CONNECTING_LOG_THROTTLE_MS) {
@@ -9801,6 +9835,7 @@ async function iniciarInstanciaBot(config) {
           resetPairingCache(botState);
           botState.pairingCooldownUntil = 0;
           botState.pairingCooldownReason = "";
+          botState.pairingQrFallbackUntil = 0;
           botState.pairingCommandHintShown = false;
           scheduleProfileApply(botState, botState.sock);
           const connectedBotName = resolveConfiguredBotName(config);
@@ -9884,6 +9919,7 @@ async function iniciarInstanciaBot(config) {
           if (pairingRejected405) {
             botState.pairingCooldownUntil = Date.now() + PAIRING_405_COOLDOWN_MS;
             botState.pairingCooldownReason = "close_code_405";
+            botState.pairingQrFallbackUntil = Date.now() + PAIRING_QR_FALLBACK_MS;
             botState.pairingCommandHintShown = false;
           }
           writePersistedBotRuntimeState(botState);
@@ -9936,6 +9972,11 @@ async function iniciarInstanciaBot(config) {
                 botState,
                 "warn",
                 `WhatsApp devolvio 405. Reintentare conexion luego de ${waitMin} min para evitar mas bloqueos.`
+              );
+              logBotEvent(
+                botState,
+                "warn",
+                "Activando modo QR temporal. Usa escaneo QR en este periodo para vincular."
               );
             }
 
