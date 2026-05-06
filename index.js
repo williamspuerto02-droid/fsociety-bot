@@ -79,8 +79,8 @@ const {
 
 // ================= CONFIG =================
 
-const DEFAULT_AUTH_FOLDER = "dvyer-session";
-const DEFAULT_SUBBOT_AUTH_FOLDER = "dvyer-session-subbot";
+const DEFAULT_AUTH_FOLDER = "fsociety-botV1-session";
+const DEFAULT_SUBBOT_AUTH_FOLDER = "fsociety-botV1-subbot";
 const DEFAULT_SUBBOT_SLOTS = 15;
 const MAX_SUBBOT_SLOTS = 50;
 const PAIRING_CODE_CACHE_MS = 60_000;
