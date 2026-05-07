@@ -3904,6 +3904,25 @@ function wrapSocketSendMessage(botState, sock) {
     return sock;
   }
 
+  function isTransientSendError(error) {
+    const statusCode = Number(
+      error?.output?.statusCode ||
+        error?.data?.statusCode ||
+        error?.statusCode ||
+        0
+    );
+    if ([500, 502, 503, 504].includes(statusCode)) {
+      return true;
+    }
+
+    const message = String(error?.message || error || "").toLowerCase();
+    return (
+      message.includes("internal server error") ||
+      message.includes("service unavailable") ||
+      message.includes("gateway timeout")
+    );
+  }
+
   sock.sendMessage = async (...args) => {
     markBotSocketActivity(botState, "sendMessage");
 
@@ -3912,6 +3931,18 @@ function wrapSocketSendMessage(botState, sock) {
       markBotSendSuccess(botState);
       return result;
     } catch (error) {
+      if (isTransientSendError(error)) {
+        await delay(900);
+        try {
+          const retryResult = await originalSendMessage(...args);
+          markBotSendSuccess(botState);
+          return retryResult;
+        } catch (retryError) {
+          markBotSendError(botState, retryError);
+          throw retryError;
+        }
+      }
+
       markBotSendError(botState, error);
       throw error;
     }
