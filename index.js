@@ -4088,6 +4088,7 @@ function ensureBotState(config) {
     lastPairingNoticeAt: 0,
     lastRenderedQr: "",
     lastRenderedQrAt: 0,
+    consecutiveLoggedOutCount: 0,
     lastPairingCode: "",
     lastPairingNumber: "",
     lastPairingAt: 0,
@@ -7777,16 +7778,16 @@ async function askPairingModeInConsole() {
   printMaskPairingScreen();
   console.log("");
 
-  console.log(chalk.redBright("╔════════════════════════════════════════════════════════════════════╗"));
-  console.log(chalk.whiteBright("║                   FSOCIETY • LINK MODE • MAIN                     ║"));
-  console.log(chalk.redBright("╠════════════════════════════════════════════════════════════════════╣"));
-  console.log(chalk.cyanBright("║  [1] QR RAPIDO                                                    ║"));
-  console.log(chalk.white("║      Escanea el codigo QR directo desde WhatsApp                  ║"));
-  console.log(chalk.greenBright("║  [2] NUMERO + CODIGO                                              ║"));
-  console.log(chalk.white("║      Vinculacion por telefono con codigo de 8 digitos             ║"));
-  console.log(chalk.redBright("╠════════════════════════════════════════════════════════════════════╣"));
-  console.log(chalk.yellowBright("║  Consejo: si falla codigo, usa QR por 30-40 min                  ║"));
-  console.log(chalk.redBright("╚════════════════════════════════════════════════════════════════════╝"));
+  console.log(chalk.bgBlack.redBright("╔════════════════════════════════════════════════════════════════════╗"));
+  console.log(chalk.bgBlack.whiteBright("║                   FSOCIETY • LINK MODE • MAIN                     ║"));
+  console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
+  console.log(chalk.bgBlack.redBright("║  [1] QR RAPIDO                                                    ║"));
+  console.log(chalk.bgBlack.white("║      Escanea el codigo QR directo desde WhatsApp                  ║"));
+  console.log(chalk.bgBlack.redBright("║  [2] NUMERO + CODIGO                                              ║"));
+  console.log(chalk.bgBlack.white("║      Vinculacion por telefono con codigo de 8 digitos             ║"));
+  console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
+  console.log(chalk.bgBlack.whiteBright("║  Consejo: si falla codigo, usa QR por 30-40 min                  ║"));
+  console.log(chalk.bgBlack.redBright("╚════════════════════════════════════════════════════════════════════╝"));
 
   let option = "";
   for (let i = 0; i < 3; i++) {
@@ -10043,19 +10044,6 @@ async function iniciarInstanciaBot(config) {
             ? "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
             : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
           logBotEvent(botState, "warn", qrHint);
-          try {
-            const now = Date.now();
-            const sameQr =
-              String(botState.lastRenderedQr || "") === String(qr || "");
-            const inCooldown = now - Number(botState.lastRenderedQrAt || 0) < 12000;
-            if (!sameQr || !inCooldown) {
-              const qrcodeTerminal = await import("qrcode-terminal");
-              const renderer = qrcodeTerminal?.default || qrcodeTerminal;
-              renderer?.generate?.(qr, { small: true });
-              botState.lastRenderedQr = String(qr || "");
-              botState.lastRenderedQrAt = now;
-            }
-          } catch {}
         }
 
         if (connection === "connecting") {
@@ -10075,6 +10063,7 @@ async function iniciarInstanciaBot(config) {
           clearSocketRecoveryTimer(botState);
           clearReplacementBlock(botState);
           botState.reconnectAttempts = 0;
+          botState.consecutiveLoggedOutCount = 0;
           botState.connectedAt = Date.now();
           botState.lastDisconnectAt = 0;
           botState.lastDisconnectCode = 0;
@@ -10149,7 +10138,9 @@ async function iniciarInstanciaBot(config) {
           const pairingRejected405 = Number(code || 0) === 405;
 
           if (loggedOut) {
-            removeAuthFolder(config.authFolder);
+            botState.consecutiveLoggedOutCount = Number(botState.consecutiveLoggedOutCount || 0) + 1;
+          } else {
+            botState.consecutiveLoggedOutCount = 0;
           }
 
           clearSocketRecoveryTimer(botState);
@@ -10269,6 +10260,30 @@ async function iniciarInstanciaBot(config) {
 
             scheduleReconnect(botState, waitMs, "pairing_405_cooldown");
             return;
+          }
+
+          if (loggedOut && botState.config?.id === "main") {
+            const loggedOutCount = Number(botState.consecutiveLoggedOutCount || 0);
+            if (loggedOutCount < 3) {
+              const retryDelay = Math.max(
+                RECONNECT_CODE0_MIN_DELAY_MS,
+                getReconnectDelay(botState, { loggedOut: false, closeCode: code })
+              );
+              logBotEvent(
+                botState,
+                "warn",
+                `Detecte 401 temporal (${loggedOutCount}/3). Mantengo sesion y reintento sin borrar auth.`
+              );
+              scheduleReconnect(botState, retryDelay, "transient_401_retry");
+              return;
+            }
+
+            logBotEvent(
+              botState,
+              "warn",
+              "401 persistente detectado. Ahora si reinicio auth porque parece sesion cerrada en WhatsApp."
+            );
+            removeAuthFolder(config.authFolder);
           }
 
           const reconnectDelay = getReconnectDelay(botState, {
