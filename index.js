@@ -8621,7 +8621,7 @@ async function requestPairingCode(botState, options = {}) {
     const code = await runTaskWithTimeout(
       `${getBotTag(botState)} pairing code`,
       PAIRING_REQUEST_TIMEOUT_MS,
-      () => sock.requestPairingCode(resolvedNumber)
+      () => sock.requestPairingCode(resolvedNumber, null)
     );
     botState.pairingQrFallbackUntil = 0;
     cachePairingCode(botState, code, resolvedNumber);
@@ -10020,7 +10020,11 @@ async function iniciarInstanciaBot(config) {
           await requestPairingCodeSafe(botState);
         }
 
-        if (qr && shouldShowPairingNotice(botState, 15000)) {
+        if (
+          qr &&
+          (preferQrFirstMode() || isPairingQrFallbackActive(botState)) &&
+          shouldShowPairingNotice(botState, 15000)
+        ) {
           const qrHint = isPairingQrFallbackActive(botState)
             ? "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
             : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
