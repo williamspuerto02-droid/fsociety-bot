@@ -6987,8 +6987,8 @@ function printMaskPairingScreen() {
   const lines = buildMaskPairingScreen();
 
   for (const rawLine of lines) {
-    // Use console.log so the global [LOG] wrapper prefixes each line once.
-    console.log(String(rawLine || ""));
+    // Print directly to stdout so the mask keeps its exact shape without [LOG] prefix.
+    process.stdout.write(`${String(rawLine || "")}\n`);
   }
 }
 
