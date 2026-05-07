@@ -4086,6 +4086,8 @@ function ensureBotState(config) {
     pairingSocketRetryAttempts: 0,
     pairingCommandHintShown: false,
     lastPairingNoticeAt: 0,
+    lastRenderedQr: "",
+    lastRenderedQrAt: 0,
     lastPairingCode: "",
     lastPairingNumber: "",
     lastPairingAt: 0,
@@ -7776,10 +7778,12 @@ async function askPairingModeInConsole() {
   console.log("");
 
   console.log(chalk.redBright("╔════════════════════════════════════════════════════════════════════╗"));
-  console.log(chalk.whiteBright("║                    FSOCIETY LINK MODE | MAIN                      ║"));
+  console.log(chalk.whiteBright("║                   FSOCIETY • LINK MODE • MAIN                     ║"));
   console.log(chalk.redBright("╠════════════════════════════════════════════════════════════════════╣"));
-  console.log(chalk.cyanBright("║  [1] QR              Escaneo rapido desde WhatsApp                ║"));
-  console.log(chalk.greenBright("║  [2] NUMERO + CODIGO Vinculacion por telefono                     ║"));
+  console.log(chalk.cyanBright("║  [1] QR RAPIDO                                                    ║"));
+  console.log(chalk.white("║      Escanea el codigo QR directo desde WhatsApp                  ║"));
+  console.log(chalk.greenBright("║  [2] NUMERO + CODIGO                                              ║"));
+  console.log(chalk.white("║      Vinculacion por telefono con codigo de 8 digitos             ║"));
   console.log(chalk.redBright("╠════════════════════════════════════════════════════════════════════╣"));
   console.log(chalk.yellowBright("║  Consejo: si falla codigo, usa QR por 30-40 min                  ║"));
   console.log(chalk.redBright("╚════════════════════════════════════════════════════════════════════╝"));
@@ -10040,9 +10044,17 @@ async function iniciarInstanciaBot(config) {
             : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
           logBotEvent(botState, "warn", qrHint);
           try {
-            const qrcodeTerminal = await import("qrcode-terminal");
-            const renderer = qrcodeTerminal?.default || qrcodeTerminal;
-            renderer?.generate?.(qr, { small: true });
+            const now = Date.now();
+            const sameQr =
+              String(botState.lastRenderedQr || "") === String(qr || "");
+            const inCooldown = now - Number(botState.lastRenderedQrAt || 0) < 12000;
+            if (!sameQr || !inCooldown) {
+              const qrcodeTerminal = await import("qrcode-terminal");
+              const renderer = qrcodeTerminal?.default || qrcodeTerminal;
+              renderer?.generate?.(qr, { small: true });
+              botState.lastRenderedQr = String(qr || "");
+              botState.lastRenderedQrAt = now;
+            }
           } catch {}
         }
 
