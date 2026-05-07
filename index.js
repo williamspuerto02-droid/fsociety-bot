@@ -1070,6 +1070,16 @@ async function applyConfiguredBotProfile(botState, sock) {
       return;
     }
 
+    if (
+      kind === "foto" &&
+      normalizedDetail.includes("cannot read properties of undefined") &&
+      normalizedDetail.includes("reading 'read'")
+    ) {
+      // Error conocido de algunas versiones de libreria de imagen.
+      // No afecta comandos ni conexion del bot.
+      return;
+    }
+
     if (kind === "nombre") {
       markProfileMutationFailure(mutationBotId, "name", error);
     } else if (kind === "bio") {
@@ -1124,8 +1134,9 @@ async function applyConfiguredBotProfile(botState, sock) {
     try {
       if (!cooldown.skip) {
         photoSource = await resolveBotProfilePhotoSource(botState?.config);
-        if (photoSource?.path) {
-          await sock.updateProfilePicture(sock.user.id, { url: photoSource.path });
+        const profileJid = String(sock?.user?.id || "").trim();
+        if (photoSource?.path && profileJid) {
+          await sock.updateProfilePicture(profileJid, { url: photoSource.path });
           markProfileMutationSuccess(mutationBotId, "photo");
         }
       }
@@ -10161,9 +10172,11 @@ async function iniciarInstanciaBot(config) {
           const code = getDisconnectStatusCode(lastDisconnect);
           const reasonText = getDisconnectReasonText(lastDisconnect);
           const silencePreLinkLogs = shouldSilencePreLinkDisconnectLogs(botState, code);
+          const restartRequired = code === DisconnectReason.restartRequired;
+          const suppressCloseWarn = restartRequired;
 
           markBotSocketActivity(botState, `connection.close:${code || "unknown"}`);
-          if (!silencePreLinkLogs) {
+          if (!silencePreLinkLogs && !suppressCloseWarn) {
             logBotEvent(
               botState,
               "warn",
@@ -10176,7 +10189,6 @@ async function iniciarInstanciaBot(config) {
             code === 401 || code === DisconnectReason.loggedOut;
           const connectionReplaced =
             code === 440 || code === DisconnectReason.connectionReplaced;
-          const restartRequired = code === DisconnectReason.restartRequired;
           const pairingRejected405 = Number(code || 0) === 405;
 
           if (loggedOut) {
@@ -10236,6 +10248,11 @@ async function iniciarInstanciaBot(config) {
 
           if (restartRequired) {
             botState.reconnectAttempts = 0;
+            logBotEvent(
+              botState,
+              "info",
+              "Reinicio de stream solicitado por WhatsApp (515). Reconectando automaticamente..."
+            );
             scheduleReconnect(botState, 1200, "restart_required");
             return;
           }
