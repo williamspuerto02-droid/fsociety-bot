@@ -2797,6 +2797,7 @@ function resolveSubbotTargetConfig(botId, options = {}) {
 
 const HAS_INTERACTIVE_CONSOLE = Boolean(process.stdin?.isTTY && process.stdout?.isTTY);
 let readlineClosed = !HAS_INTERACTIVE_CONSOLE;
+let runtimePairingMode = "";
 const rl = HAS_INTERACTIVE_CONSOLE
   ? readline.createInterface({
       input: process.stdin,
@@ -7743,11 +7744,108 @@ function isPairingQrFallbackActive(botState) {
   return Boolean(until && until > Date.now());
 }
 
+function getEffectivePairingModeRaw() {
+  if (runtimePairingMode) {
+    return String(runtimePairingMode).trim().toLowerCase();
+  }
+
+  return String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+}
+
 function preferQrFirstMode() {
-  const raw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  const raw = getEffectivePairingModeRaw();
   if (!raw) return true;
   if (["code", "pairing", "phone", "legacy"].includes(raw)) return false;
   return true;
+}
+
+async function askPairingModeInConsole() {
+  if (!canPromptInConsole()) {
+    return;
+  }
+
+  if (runtimePairingMode) {
+    return;
+  }
+
+  const envRaw = String(process.env.PAIRING_MODE || "").trim();
+  if (envRaw) {
+    runtimePairingMode = envRaw;
+    return;
+  }
+
+  console.log(chalk.yellowBright("╭────────────────────────────────────────────────────────────────────╮"));
+  console.log(chalk.yellowBright("│  MODO DE VINCULACION                                              │"));
+  console.log(chalk.cyanBright("│  1) QR (recomendado si hay bloqueos 405)                          │"));
+  console.log(chalk.greenBright("│  2) NUMERO + CODIGO (pairing code)                                │"));
+  console.log(chalk.yellowBright("╰────────────────────────────────────────────────────────────────────╯"));
+
+  let option = "";
+  for (let i = 0; i < 3; i++) {
+    option = String(
+      await preguntarSeguro(chalk.greenBright("Elige modo [1/2] > "))
+    )
+      .trim()
+      .toLowerCase();
+    if (option === "1" || option === "2") {
+      break;
+    }
+    console.log(chalk.redBright("Opcion invalida. Escribe 1 o 2."));
+  }
+
+  runtimePairingMode = option === "2" ? "code" : "qr";
+  console.log(
+    chalk.cyanBright(
+      runtimePairingMode === "code"
+        ? "Modo seleccionado: NUMERO + CODIGO"
+        : "Modo seleccionado: QR"
+    )
+  );
+
+  if (runtimePairingMode === "code") {
+    const currentNumber =
+      normalizePairingPhoneNumber(settings?.pairingNumber) ||
+      normalizePairingPhoneNumber(getMainBotState()?.config?.pairingNumber);
+
+    if (currentNumber) {
+      saveMainBotPairingNumber(currentNumber);
+      const mainState = getMainBotState();
+      if (mainState?.config) {
+        mainState.config.pairingNumber = currentNumber;
+      }
+      console.log(chalk.cyanBright(`Numero para codigo: ${currentNumber}`));
+      return;
+    }
+
+    let resolvedNumber = "";
+    for (let i = 0; i < 3; i++) {
+      const entered = normalizePairingPhoneNumber(
+        await preguntarSeguro(
+          chalk.greenBright("Numero para recibir codigo (con pais, ej: 51912345678) > ")
+        )
+      );
+      if (entered) {
+        resolvedNumber = entered;
+        break;
+      }
+      console.log(chalk.redBright("Numero invalido. Usa 10 a 15 digitos con codigo de pais."));
+    }
+
+    if (resolvedNumber) {
+      saveMainBotPairingNumber(resolvedNumber);
+      const mainState = getMainBotState();
+      if (mainState?.config) {
+        mainState.config.pairingNumber = resolvedNumber;
+      }
+      console.log(chalk.cyanBright(`Numero guardado para codigo: ${resolvedNumber}`));
+    } else {
+      console.log(
+        chalk.yellowBright(
+          "No se guardo numero. Reinicia y el sistema te pedira el numero otra vez."
+        )
+      );
+    }
+  }
 }
 
 function shouldHardStopOnPreLink405(botState) {
@@ -9939,7 +10037,11 @@ async function iniciarInstanciaBot(config) {
           await requestPairingCodeSafe(botState);
         }
 
-        if (qr && shouldShowPairingNotice(botState, 15000)) {
+        if (
+          qr &&
+          (preferQrFirstMode() || isPairingQrFallbackActive(botState)) &&
+          shouldShowPairingNotice(botState, 15000)
+        ) {
           const qrHint = isPairingQrFallbackActive(botState)
             ? "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
             : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
@@ -10295,6 +10397,7 @@ async function start() {
   });
   await cargarComandos();
   await banner();
+  await askPairingModeInConsole();
   await syncManagedProcessBots();
   await syncSplitSubbotProcessPool();
   flushManagedBotRuntimeStates();
