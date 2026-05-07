@@ -2492,11 +2492,11 @@ function formatCommandConsoleLog(commandData = {}, message = {}, from = "") {
     ? `grupo:${chatId || "desconocido"}`
     : `privado:${user}`;
   const requestId = String(commandData?.requestId || "").trim();
-  const commandTag = chalk.greenBright(`CMD ${commandText}`);
-  const userTag = chalk.yellowBright(`USER ${user}`);
-  const scopeTag = chalk.cyanBright(`CHAT ${scope}`);
-  const reqTag = requestId ? chalk.magentaBright(`RID ${requestId}`) : "";
-  return [commandTag, userTag, scopeTag, reqTag].filter(Boolean).join("  •  ");
+  const commandTag = chalk.greenBright(`⌘ CMD: ${commandText}`);
+  const userTag = chalk.yellowBright(`👤 USER: ${user}`);
+  const scopeTag = chalk.cyanBright(`💬 CHAT: ${scope}`);
+  const reqTag = requestId ? chalk.magentaBright(`🆔 RID: ${requestId}`) : "";
+  return [commandTag, userTag, scopeTag, reqTag].filter(Boolean).join(chalk.gray("  │  "));
 }
 
 const GLOBAL_COMMAND_ALIAS_MAP = new Map([
@@ -3656,21 +3656,21 @@ function logBotEvent(value, level = "info", message = "", metadata = {}) {
   });
 
   if (normalizedLevel === "error") {
-    console.log(`${timeText} ${tagText} ${chalk.redBright("[ERROR]")} ${chalk.redBright(`✖ ${messageText}${extraText}`)}`);
+    console.log(`${timeText} ${tagText} ${chalk.redBright("[ERROR]")} ${chalk.redBright(`⨯ ${messageText}${extraText}`)}`);
     return;
   }
 
   if (normalizedLevel === "warn") {
-    console.log(`${timeText} ${tagText} ${chalk.yellowBright("[WARN ]")} ${chalk.yellowBright(`⚠ ${messageText}${extraText}`)}`);
+    console.log(`${timeText} ${tagText} ${chalk.yellowBright("[WARN ]")} ${chalk.yellowBright(`⚠︎ ${messageText}${extraText}`)}`);
     return;
   }
 
   if (normalizedLevel === "success") {
-    console.log(`${timeText} ${tagText} ${chalk.greenBright("[ OK  ]")} ${chalk.greenBright(`✔ ${messageText}${extraText}`)}`);
+    console.log(`${timeText} ${tagText} ${chalk.greenBright("[ OK  ]")} ${chalk.greenBright(`✅ ${messageText}${extraText}`)}`);
     return;
   }
 
-  console.log(`${timeText} ${tagText} ${chalk.blueBright("[INFO ]")} ${chalk.cyanBright(`◆ ${messageText}${extraText}`)}`);
+  console.log(`${timeText} ${tagText} ${chalk.blueBright("[INFO ]")} ${chalk.cyanBright(`✦ ${messageText}${extraText}`)}`);
 }
 
 function createStoreForBot(botId) {
