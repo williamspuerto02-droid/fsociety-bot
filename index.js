@@ -7772,14 +7772,14 @@ async function askPairingModeInConsole() {
   printMaskPairingScreen();
   console.log("");
 
-  console.log(chalk.redBright("╭────────────────────────────────────────────────────────────────────╮"));
-  console.log(chalk.redBright("│                       FSOCIETY LINK MODE                          │"));
-  console.log(chalk.red("├────────────────────────────────────────────────────────────────────┤"));
-  console.log(chalk.redBright("│  1) QR              Escaneo rapido desde WhatsApp                 │"));
-  console.log(chalk.redBright("│  2) NUMERO + CODIGO Vinculacion por telefono                      │"));
-  console.log(chalk.red("├────────────────────────────────────────────────────────────────────┤"));
-  console.log(chalk.redBright("│  Consejo: si falla codigo, usa QR por 30-40 min                   │"));
-  console.log(chalk.redBright("╰────────────────────────────────────────────────────────────────────╯"));
+  console.log(chalk.white("╭────────────────────────────────────────────────────────────────────╮"));
+  console.log(chalk.white("│                       FSOCIETY LINK MODE                          │"));
+  console.log(chalk.white("├────────────────────────────────────────────────────────────────────┤"));
+  console.log(chalk.white("│  1) QR              Escaneo rapido desde WhatsApp                 │"));
+  console.log(chalk.white("│  2) NUMERO + CODIGO Vinculacion por telefono                      │"));
+  console.log(chalk.white("├────────────────────────────────────────────────────────────────────┤"));
+  console.log(chalk.white("│  Consejo: si falla codigo, usa QR por 30-40 min                   │"));
+  console.log(chalk.white("╰────────────────────────────────────────────────────────────────────╯"));
 
   let option = "";
   for (let i = 0; i < 3; i++) {
