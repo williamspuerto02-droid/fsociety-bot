@@ -24,3 +24,7 @@
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠀⠀⠀⠀⠀⠀⠈⠛⠛⠛⠋⠀⠀⠀⠀⠀⠉⠛⠛⠋⠉⠀⠀⠀⠀⠀⠀⠙⠛⠛⠛⠁⠀⠀⠛⠛⠁⠀
 
 INGRESE SU NUMERO PARA VINCULARSE AL BOT (EJEMPLO: 51912345678)
+MODO 1: QR (ESCANEAR)
+MODO 2: NUMERO + CODIGO
+USA SOLO NUMEROS CON CODIGO DE PAIS, SIN "+" NI ESPACIOS.
+FSOCIETY LINK SYSTEM READY...
