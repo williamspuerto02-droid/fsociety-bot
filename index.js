@@ -8632,7 +8632,7 @@ async function requestPairingCode(botState, options = {}) {
     const code = await runTaskWithTimeout(
       `${getBotTag(botState)} pairing code`,
       PAIRING_REQUEST_TIMEOUT_MS,
-      () => sock.requestPairingCode(resolvedNumber, "DVYER123")
+      () => sock.requestPairingCode(resolvedNumber, null)
     );
     const safeCode = normalizeNumericPairingCode(code);
     if (!safeCode) {
@@ -9925,7 +9925,15 @@ async function iniciarInstanciaBot(config) {
 
     botState.sock.ev.on("creds.update", (...args) => {
       markBotSocketActivity(botState, "creds.update");
-      return saveCreds(...args);
+      ensureAuthFolderExists(config.authFolder);
+      return saveCreds(...args).catch((error) => {
+        const code = String(error?.code || "").toUpperCase();
+        if (code === "ENOENT") {
+          ensureAuthFolderExists(config.authFolder);
+          return saveCreds(...args);
+        }
+        throw error;
+      });
     });
 
     const syncEconomyContact = (entry = {}) => {
