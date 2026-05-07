@@ -7768,23 +7768,25 @@ async function askPairingModeInConsole() {
     return;
   }
 
-  const envRaw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
-  if (envRaw) {
-    runtimePairingMode = envRaw;
-    return;
-  }
-
   const mainState = getMainBotState();
   const mainConfig = mainState?.config || buildMainBotConfig(settings);
   const hasSavedMainSession =
-    hasPersistedBotSession(mainConfig) ||
-    isBotRegistered(mainState) ||
-    isMainBotReady();
+    hasPersistedBotSession(mainConfig) || isBotRegistered(mainState);
 
   // Si ya existe sesion guardada, conectamos directo sin pedir modo de vinculacion.
   if (hasSavedMainSession) {
     runtimePairingMode = "qr";
     return;
+  }
+
+  // Si NO hay sesion real, priorizamos menu interactivo aunque exista PAIRING_MODE en entorno.
+  const envRaw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  if (envRaw) {
+    console.log(
+      chalk.yellowBright(
+        "Sin sesion guardada: ignorando PAIRING_MODE de entorno para mostrar selector [1/2]."
+      )
+    );
   }
 
   // Show custom mask art before mode selection.
