@@ -6988,17 +6988,20 @@ function printMaskPairingScreen() {
 
   for (const rawLine of lines) {
     // Print directly to stdout so the mask keeps its exact shape without [LOG] prefix.
-    process.stdout.write(`${chalk.redBright(String(rawLine || ""))}\n`);
+    process.stdout.write(`${chalk.white(String(rawLine || ""))}\n`);
   }
 }
 
 function printPairingPromptPanel(botLabel = "MAIN") {
   const label = String(botLabel || "MAIN").trim().toUpperCase();
-  console.log(chalk.yellowBright("╭────────────────────────────────────────────────────────────────────╮"));
-  console.log(chalk.yellowBright(`│  ${label} LINK MODE                                                │`));
-  console.log(chalk.greenBright("│  INGRESE SU NUMERO CON CODIGO DE PAIS (SIN +, SIN ESPACIOS)       │"));
-  console.log(chalk.cyanBright("│  EJEMPLO: 51912345678                                              │"));
-  console.log(chalk.yellowBright("╰────────────────────────────────────────────────────────────────────╯"));
+  console.log(chalk.redBright("╔════════════════════════════════════════════════════════════════════╗"));
+  console.log(chalk.whiteBright(`║  ${label} LINK MODE                                                  ║`));
+  console.log(chalk.redBright("╠════════════════════════════════════════════════════════════════════╣"));
+  console.log(chalk.yellowBright("║  INGRESE SU NUMERO PARA VINCULARSE AL BOT                          ║"));
+  console.log(chalk.cyanBright("║  FORMATO: CODIGO PAIS + NUMERO (SIN +, SIN ESPACIOS)              ║"));
+  console.log(chalk.greenBright("║  EJEMPLO: 51912345678                                              ║"));
+  console.log(chalk.magentaBright("║  TIP: SI FALLA CODIGO, USE MODO QR POR 30-40 MIN                  ║"));
+  console.log(chalk.redBright("╚════════════════════════════════════════════════════════════════════╝"));
 }
 
 async function banner() {
