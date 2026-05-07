@@ -7759,12 +7759,14 @@ function preferQrFirstMode() {
   return true;
 }
 
-function normalizeNumericPairingCode(value) {
-  const raw = String(value || "").trim();
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) return "";
-  if (digits.length === 8) return digits;
-  return "";
+function normalizePairingCodeValue(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  const compact = raw.replace(/[\s-]+/g, "");
+  if (!compact) return "";
+  // Algunas forks devuelven codigo alfanumerico (no solo 8 digitos).
+  if (compact.length < 4 || compact.length > 20) return "";
+  if (!/^[A-Z0-9]+$/.test(compact)) return "";
+  return compact;
 }
 
 async function askPairingModeInConsole() {
@@ -8634,14 +8636,14 @@ async function requestPairingCode(botState, options = {}) {
       PAIRING_REQUEST_TIMEOUT_MS,
       () => sock.requestPairingCode(resolvedNumber, null)
     );
-    const safeCode = normalizeNumericPairingCode(code);
+    const safeCode = normalizePairingCodeValue(code);
     if (!safeCode) {
       botState.pairingRequested = false;
       return {
         ok: false,
         status: "invalid_pairing_code",
         message:
-          "La libreria devolvio un codigo invalido (no numerico de 8 digitos). Revisa la version de Baileys.",
+          "La libreria devolvio un codigo invalido. Revisa la version de Baileys.",
       };
     }
     botState.pairingQrFallbackUntil = 0;
