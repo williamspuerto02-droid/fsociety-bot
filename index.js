@@ -2492,16 +2492,14 @@ function formatCommandConsoleLog(commandData = {}, message = {}, from = "") {
     ? `grupo:${chatId || "desconocido"}`
     : `privado:${user}`;
   const requestId = String(commandData?.requestId || "").trim();
-  const decoLeft = chalk.redBright("❅──────✧❅✦❅✧──────❅.");
-  const decoRight = chalk.redBright("❅──────✧❅✦❅✧──────❅.");
-  const spacer = "                                                               ";
-  const commandTag = chalk.redBright(`➤ ⌘ CMD: ${commandText}`);
-  const userTag = chalk.whiteBright(`↳ 👤 USER: ${user}`);
-  const scopeTag = chalk.redBright(`↳ 💬 CHAT: ${scope}`);
-  const reqTag = requestId ? chalk.whiteBright(`↳ 🆔 RID: ${requestId}`) : "";
-  return [decoLeft + spacer + decoRight, commandTag, userTag, scopeTag, reqTag, decoLeft + spacer + decoRight]
+  const deco = chalk.redBright("❅✦❅");
+  const commandTag = chalk.redBright(`⌘ ${commandText}`);
+  const userTag = chalk.whiteBright(`👤 ${user}`);
+  const scopeTag = chalk.redBright(`💬 ${scope}`);
+  const reqTag = requestId ? chalk.whiteBright(`🆔 ${requestId}`) : "";
+  return [deco, commandTag, userTag, scopeTag, reqTag, deco]
     .filter(Boolean)
-    .join(chalk.bgBlack.redBright(" • "));
+    .join(chalk.bgBlack.redBright(" │ "));
 }
 
 const GLOBAL_COMMAND_ALIAS_MAP = new Map([
@@ -3650,9 +3648,7 @@ function logBotEvent(value, level = "info", message = "", metadata = {}) {
   const extraText = requestId ? ` [${requestId}]` : "";
   const timeText = chalk.redBright(`[${formatLogTime()}]`);
   const tagText = chalk.whiteBright(`[${tag}]`);
-  const deco = chalk.bgBlack.redBright(
-    "❅──────✧❅✦❅✧──────❅.                                                               ❅──────✧❅✦❅✧──────❅."
-  );
+  const deco = chalk.bgBlack.redBright("❅✦❅");
 
   appendStructuredLog({
     ts: new Date().toISOString(),
@@ -3664,21 +3660,21 @@ function logBotEvent(value, level = "info", message = "", metadata = {}) {
   });
 
   if (normalizedLevel === "error") {
-    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[ERROR]")} ${chalk.redBright(`↯ ⨯ ${messageText}${extraText}`)} ${deco}`);
+    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[ERROR]")} ${chalk.redBright(`↯ ${messageText}${extraText}`)}`);
     return;
   }
 
   if (normalizedLevel === "warn") {
-    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[WARN ]")} ${chalk.whiteBright(`↺ ⚠︎ ${messageText}${extraText}`)} ${deco}`);
+    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[WARN ]")} ${chalk.whiteBright(`⚠︎ ${messageText}${extraText}`)}`);
     return;
   }
 
   if (normalizedLevel === "success") {
-    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[ OK  ]")} ${chalk.whiteBright(`↻ ✅ ${messageText}${extraText}`)} ${deco}`);
+    console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[ OK  ]")} ${chalk.whiteBright(`✅ ${messageText}${extraText}`)}`);
     return;
   }
 
-  console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[INFO ]")} ${chalk.whiteBright(`➜ ✦ ${messageText}${extraText}`)} ${deco}`);
+  console.log(`${deco} ${timeText} ${tagText} ${chalk.redBright("[INFO ]")} ${chalk.whiteBright(`✦ ${messageText}${extraText}`)}`);
 }
 
 function createStoreForBot(botId) {
