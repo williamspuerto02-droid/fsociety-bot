@@ -6988,7 +6988,7 @@ function printMaskPairingScreen() {
 
   for (const rawLine of lines) {
     // Use console.log so the global [LOG] wrapper prefixes each line once.
-    console.log(chalk.cyanBright(String(rawLine || "")));
+    console.log(chalk.redBright(String(rawLine || "")));
   }
 }
 
@@ -7767,6 +7767,10 @@ async function askPairingModeInConsole() {
     runtimePairingMode = envRaw;
     return;
   }
+
+  // Show custom mask art before mode selection.
+  printMaskPairingScreen();
+  console.log("");
 
   console.log(chalk.yellowBright("╭────────────────────────────────────────────────────────────────────╮"));
   console.log(chalk.yellowBright("│  MODO DE VINCULACION                                              │"));
