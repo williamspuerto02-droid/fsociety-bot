@@ -6991,7 +6991,7 @@ function printMaskPairingScreen() {
 
   for (const rawLine of lines) {
     // Print directly to stdout so the mask keeps its exact shape without [LOG] prefix.
-    process.stdout.write(`${chalk.white(String(rawLine || ""))}\n`);
+    process.stdout.write(`${chalk.bgBlack.redBright(String(rawLine || ""))}\n`);
   }
 }
 
@@ -10428,6 +10428,10 @@ async function start() {
   cleanupManagedTempRoots({
     maxAgeMs: 45 * 60 * 1000,
   });
+  if (canPromptInConsole()) {
+    printMaskPairingScreen();
+    console.log("");
+  }
   await cargarComandos();
   await banner();
   await askPairingModeInConsole();
