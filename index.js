@@ -7868,11 +7868,32 @@ function preferQrFirstMode() {
 }
 
 async function askPairingModeInConsole() {
-  if (!canPromptInConsole()) {
+  if (runtimePairingMode) {
     return;
   }
 
-  if (runtimePairingMode) {
+  // En PM2/hosting sin TTY interactivo, permitimos forzar el modo por entorno.
+  // Valores validos: code | pairing | phone | legacy | qr
+  const envRaw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  if (envRaw) {
+    runtimePairingMode = ["code", "pairing", "phone", "legacy"].includes(envRaw)
+      ? "code"
+      : "qr";
+    console.log(
+      chalk.cyanBright(
+        `[PAIRING] Modo forzado por PAIRING_MODE=${envRaw} -> ${runtimePairingMode.toUpperCase()}`
+      )
+    );
+    return;
+  }
+
+  if (!canPromptInConsole()) {
+    runtimePairingMode = "qr";
+    console.log(
+      chalk.yellowBright(
+        "[PAIRING] Sin consola interactiva (PM2). Usando modo QR por defecto."
+      )
+    );
     return;
   }
 
@@ -7888,15 +7909,6 @@ async function askPairingModeInConsole() {
   }
 
   // Si NO hay sesion real, priorizamos menu interactivo aunque exista PAIRING_MODE en entorno.
-  const envRaw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
-  if (envRaw) {
-    console.log(
-      chalk.yellowBright(
-        "Sin sesion guardada: ignorando PAIRING_MODE de entorno para mostrar selector [1/2]."
-      )
-    );
-  }
-
   // Show custom mask art before mode selection.
   printMaskPairingScreen();
   console.log("");
