@@ -7774,6 +7774,19 @@ async function askPairingModeInConsole() {
     return;
   }
 
+  const mainState = getMainBotState();
+  const mainConfig = mainState?.config || buildMainBotConfig(settings);
+  const hasSavedMainSession =
+    hasPersistedBotSession(mainConfig) ||
+    isBotRegistered(mainState) ||
+    isMainBotReady();
+
+  // Si ya existe sesion guardada, conectamos directo sin pedir modo de vinculacion.
+  if (hasSavedMainSession) {
+    runtimePairingMode = "qr";
+    return;
+  }
+
   // Show custom mask art before mode selection.
   printMaskPairingScreen();
   console.log("");
