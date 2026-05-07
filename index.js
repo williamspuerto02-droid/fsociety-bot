@@ -7852,9 +7852,9 @@ async function askPairingModeInConsole() {
   }
 
   saveMainBotPairingNumber(resolvedNumber);
-  const mainState = getMainBotState();
-  if (mainState?.config) {
-    mainState.config.pairingNumber = resolvedNumber;
+  const mainStateForSave = getMainBotState();
+  if (mainStateForSave?.config) {
+    mainStateForSave.config.pairingNumber = resolvedNumber;
   }
   console.log(chalk.cyanBright(`Numero guardado para codigo: ${resolvedNumber}`));
 }
