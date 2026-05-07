@@ -6988,7 +6988,7 @@ function printMaskPairingScreen() {
 
   for (const rawLine of lines) {
     // Use console.log so the global [LOG] wrapper prefixes each line once.
-    console.log(chalk.redBright(String(rawLine || "")));
+    console.log(String(rawLine || ""));
   }
 }
 
