@@ -7794,11 +7794,11 @@ async function askPairingModeInConsole() {
   console.log("");
 
   console.log(chalk.bgBlack.redBright("╔════════════════════════════════════════════════════════════════════╗"));
-  console.log(chalk.bgBlack.whiteBright("║                   FSOCIETY • LINK MODE • MAIN                     ║"));
+  console.log(chalk.bgBlack.whiteBright("║                FSOCIETY • SECURE LINK MODE • MAIN                 ║"));
   console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
-  console.log(chalk.bgBlack.redBright("║  [1] QR RAPIDO                                                    ║"));
+  console.log(chalk.bgBlack.redBright("║  [1] QR RAPIDO (RECOMENDADO)                                      ║"));
   console.log(chalk.bgBlack.white("║      Escanea el codigo QR directo desde WhatsApp                  ║"));
-  console.log(chalk.bgBlack.redBright("║  [2] NUMERO + CODIGO                                              ║"));
+  console.log(chalk.bgBlack.redBright("║  [2] NUMERO + CODIGO (8 DIGITOS)                                  ║"));
   console.log(chalk.bgBlack.white("║      Vinculacion por telefono con codigo de 8 digitos             ║"));
   console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
   console.log(chalk.bgBlack.whiteBright("║  Consejo: si falla codigo, usa QR por 30-40 min                  ║"));
@@ -7899,9 +7899,8 @@ function shouldAutoRequestPairingCode(botState) {
     return false;
   }
 
-  if (String(botState?.config?.id || "").trim().toLowerCase() === "main") {
-    // MAIN no debe autopedir codigo por numero al arrancar;
-    // usar menu QR/CODIGO manual evita prompts inesperados.
+  const isMain = String(botState?.config?.id || "").trim().toLowerCase() === "main";
+  if (isMain && runtimePairingMode !== "code") {
     return false;
   }
 
@@ -7917,7 +7916,7 @@ function shouldAutoRequestPairingCode(botState) {
     return false;
   }
 
-  if (botState?.config?.id === "main") {
+  if (isMain) {
     return true;
   }
 
