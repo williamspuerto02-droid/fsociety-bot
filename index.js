@@ -2859,6 +2859,7 @@ const messageHookModules = [];
 const groupUpdateHookModules = [];
 const messageDeleteHookModules = [];
 const botStates = new Map();
+let runtimePairingMode = "";
 
 let totalMensajes = 0;
 let totalComandos = 0;
@@ -7744,10 +7745,90 @@ function isPairingQrFallbackActive(botState) {
 }
 
 function preferQrFirstMode() {
-  const raw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  const raw = String(runtimePairingMode || process.env.PAIRING_MODE || "")
+    .trim()
+    .toLowerCase();
   if (!raw) return true;
   if (["code", "pairing", "phone", "legacy"].includes(raw)) return false;
   return true;
+}
+
+async function askPairingModeInConsole() {
+  if (!canPromptInConsole()) {
+    return;
+  }
+
+  if (runtimePairingMode) {
+    return;
+  }
+
+  const envRaw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
+  if (envRaw) {
+    runtimePairingMode = envRaw;
+    return;
+  }
+
+  console.log(chalk.yellowBright("╭────────────────────────────────────────────────────────────────────╮"));
+  console.log(chalk.yellowBright("│  MODO DE VINCULACION                                              │"));
+  console.log(chalk.cyanBright("│  1) QR (rapido por escaneo)                                       │"));
+  console.log(chalk.greenBright("│  2) NUMERO + CODIGO (vincular por telefono)                       │"));
+  console.log(chalk.yellowBright("╰────────────────────────────────────────────────────────────────────╯"));
+
+  let option = "";
+  for (let i = 0; i < 3; i++) {
+    option = String(await preguntarSeguro(chalk.greenBright("Elige modo [1/2] > ")))
+      .trim()
+      .toLowerCase();
+    if (option === "1" || option === "2") {
+      break;
+    }
+    console.log(chalk.redBright("Opcion invalida. Escribe 1 o 2."));
+  }
+
+  runtimePairingMode = option === "2" ? "code" : "qr";
+  console.log(
+    chalk.cyanBright(
+      runtimePairingMode === "code"
+        ? "Modo seleccionado: NUMERO + CODIGO"
+        : "Modo seleccionado: QR"
+    )
+  );
+
+  if (runtimePairingMode !== "code") {
+    return;
+  }
+
+  let resolvedNumber = "";
+  for (let i = 0; i < 3; i++) {
+    const entered = normalizePairingPhoneNumber(
+      await preguntarSeguro(
+        chalk.greenBright(
+          "Numero para recibir codigo (con pais, ej: 51912345678) > "
+        )
+      )
+    );
+    if (entered) {
+      resolvedNumber = entered;
+      break;
+    }
+    console.log(chalk.redBright("Numero invalido. Usa 10 a 15 digitos con codigo de pais."));
+  }
+
+  if (!resolvedNumber) {
+    console.log(
+      chalk.yellowBright(
+        "No se guardo numero. Se solicitara luego cuando pidas codigo nuevamente."
+      )
+    );
+    return;
+  }
+
+  saveMainBotPairingNumber(resolvedNumber);
+  const mainState = getMainBotState();
+  if (mainState?.config) {
+    mainState.config.pairingNumber = resolvedNumber;
+  }
+  console.log(chalk.cyanBright(`Numero guardado para codigo: ${resolvedNumber}`));
 }
 
 function shouldHardStopOnPreLink405(botState) {
@@ -10295,6 +10376,7 @@ async function start() {
   });
   await cargarComandos();
   await banner();
+  await askPairingModeInConsole();
   await syncManagedProcessBots();
   await syncSplitSubbotProcessPool();
   flushManagedBotRuntimeStates();
