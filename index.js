@@ -2797,7 +2797,6 @@ function resolveSubbotTargetConfig(botId, options = {}) {
 
 const HAS_INTERACTIVE_CONSOLE = Boolean(process.stdin?.isTTY && process.stdout?.isTTY);
 let readlineClosed = !HAS_INTERACTIVE_CONSOLE;
-let runtimePairingMode = "";
 const rl = HAS_INTERACTIVE_CONSOLE
   ? readline.createInterface({
       input: process.stdin,
@@ -7744,104 +7743,11 @@ function isPairingQrFallbackActive(botState) {
   return Boolean(until && until > Date.now());
 }
 
-function getEffectivePairingModeRaw() {
-  if (runtimePairingMode) {
-    return String(runtimePairingMode).trim().toLowerCase();
-  }
-
-  return String(process.env.PAIRING_MODE || "").trim().toLowerCase();
-}
-
 function preferQrFirstMode() {
-  const raw = getEffectivePairingModeRaw();
+  const raw = String(process.env.PAIRING_MODE || "").trim().toLowerCase();
   if (!raw) return true;
   if (["code", "pairing", "phone", "legacy"].includes(raw)) return false;
   return true;
-}
-
-function normalizePairingCodeValue(value) {
-  const raw = String(value || "").trim().toUpperCase();
-  const compact = raw.replace(/[\s-]+/g, "");
-  if (!compact) return "";
-  // Algunas forks devuelven codigo alfanumerico (no solo 8 digitos).
-  if (compact.length < 4 || compact.length > 20) return "";
-  if (!/^[A-Z0-9]+$/.test(compact)) return "";
-  return compact;
-}
-
-async function askPairingModeInConsole() {
-  if (!canPromptInConsole()) {
-    return;
-  }
-
-  if (runtimePairingMode) {
-    return;
-  }
-
-  const envRaw = String(process.env.PAIRING_MODE || "").trim();
-  if (envRaw) {
-    runtimePairingMode = envRaw;
-    return;
-  }
-
-  console.log(chalk.yellowBright("╭────────────────────────────────────────────────────────────────────╮"));
-  console.log(chalk.yellowBright("│  MODO DE VINCULACION                                              │"));
-  console.log(chalk.cyanBright("│  1) QR (recomendado si hay bloqueos 405)                          │"));
-  console.log(chalk.greenBright("│  2) NUMERO + CODIGO (pairing code)                                │"));
-  console.log(chalk.yellowBright("╰────────────────────────────────────────────────────────────────────╯"));
-
-  let option = "";
-  for (let i = 0; i < 3; i++) {
-    option = String(
-      await preguntarSeguro(chalk.greenBright("Elige modo [1/2] > "))
-    )
-      .trim()
-      .toLowerCase();
-    if (option === "1" || option === "2") {
-      break;
-    }
-    console.log(chalk.redBright("Opcion invalida. Escribe 1 o 2."));
-  }
-
-  runtimePairingMode = option === "2" ? "code" : "qr";
-  console.log(
-    chalk.cyanBright(
-      runtimePairingMode === "code"
-        ? "Modo seleccionado: NUMERO + CODIGO"
-        : "Modo seleccionado: QR"
-    )
-  );
-
-  if (runtimePairingMode === "code") {
-    let resolvedNumber = "";
-    for (let i = 0; i < 3; i++) {
-      const entered = normalizePairingPhoneNumber(
-        await preguntarSeguro(
-          chalk.greenBright("Numero para recibir codigo (con pais, ej: 51912345678) > ")
-        )
-      );
-      if (entered) {
-        resolvedNumber = entered;
-        break;
-      }
-      console.log(chalk.redBright("Numero invalido. Usa 10 a 15 digitos con codigo de pais."));
-    }
-
-    if (resolvedNumber) {
-      saveMainBotPairingNumber(resolvedNumber);
-      const mainState = getMainBotState();
-      if (mainState?.config) {
-        mainState.config.pairingNumber = resolvedNumber;
-      }
-      console.log(chalk.cyanBright(`Numero guardado para codigo: ${resolvedNumber}`));
-    } else {
-      console.log(
-        chalk.yellowBright(
-          "No se guardo numero. Reinicia y el sistema te pedira el numero otra vez."
-        )
-      );
-    }
-  }
 }
 
 function shouldHardStopOnPreLink405(botState) {
@@ -8634,20 +8540,10 @@ async function requestPairingCode(botState, options = {}) {
     const code = await runTaskWithTimeout(
       `${getBotTag(botState)} pairing code`,
       PAIRING_REQUEST_TIMEOUT_MS,
-      () => sock.requestPairingCode(resolvedNumber, null)
+      () => sock.requestPairingCode(resolvedNumber)
     );
-    const safeCode = normalizePairingCodeValue(code);
-    if (!safeCode) {
-      botState.pairingRequested = false;
-      return {
-        ok: false,
-        status: "invalid_pairing_code",
-        message:
-          "La libreria devolvio un codigo invalido. Revisa la version de Baileys.",
-      };
-    }
     botState.pairingQrFallbackUntil = 0;
-    cachePairingCode(botState, safeCode, resolvedNumber);
+    cachePairingCode(botState, code, resolvedNumber);
 
     return {
       ok: true,
@@ -8656,7 +8552,7 @@ async function requestPairingCode(botState, options = {}) {
       label: botState.config.label,
       displayName: botState.config.displayName,
       slot: Number(botState.config.slot || 0),
-      code: safeCode,
+      code,
       number: resolvedNumber,
       expiresInMs: PAIRING_CODE_CACHE_MS,
     };
@@ -9927,15 +9823,7 @@ async function iniciarInstanciaBot(config) {
 
     botState.sock.ev.on("creds.update", (...args) => {
       markBotSocketActivity(botState, "creds.update");
-      ensureAuthFolderExists(config.authFolder);
-      return saveCreds(...args).catch((error) => {
-        const code = String(error?.code || "").toUpperCase();
-        if (code === "ENOENT") {
-          ensureAuthFolderExists(config.authFolder);
-          return saveCreds(...args);
-        }
-        throw error;
-      });
+      return saveCreds(...args);
     });
 
     const syncEconomyContact = (entry = {}) => {
@@ -10051,11 +9939,7 @@ async function iniciarInstanciaBot(config) {
           await requestPairingCodeSafe(botState);
         }
 
-        if (
-          qr &&
-          (preferQrFirstMode() || isPairingQrFallbackActive(botState)) &&
-          shouldShowPairingNotice(botState, 15000)
-        ) {
+        if (qr && shouldShowPairingNotice(botState, 15000)) {
           const qrHint = isPairingQrFallbackActive(botState)
             ? "Modo QR activo por bloqueo 405. Escanea el QR para vincular y evitar el limite por numero."
             : "QR detectado. Vincula escaneando el QR para evitar limite por codigo numerico.";
@@ -10411,7 +10295,6 @@ async function start() {
   });
   await cargarComandos();
   await banner();
-  await askPairingModeInConsole();
   await syncManagedProcessBots();
   await syncSplitSubbotProcessPool();
   flushManagedBotRuntimeStates();
