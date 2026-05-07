@@ -57,6 +57,7 @@ export default {
       { quoted: msg }
     );
 
-    runtime.restartProcess();
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    runtime.restartProcess(1200);
   },
 };

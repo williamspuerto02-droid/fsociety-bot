@@ -338,6 +338,21 @@ function getRestartMode() {
   };
 }
 
+function getPm2Executable() {
+  return process.platform === "win32" ? "pm2.cmd" : "pm2";
+}
+
+function getMainPm2ProcessName() {
+  const configured = String(
+    process.env.PM2_PROCESS_NAME ||
+      process.env.BOT_PM2_NAME ||
+      process.env.pm_name ||
+      process.env.name ||
+      ""
+  ).trim();
+  return configured || "fsociety-bot";
+}
+
 async function isInsideGitWorkTree() {
   try {
     const result = await runCommand("git", ["rev-parse", "--is-inside-work-tree"]);
@@ -689,6 +704,42 @@ function scheduleRestart(delayMs = RESTART_DELAY_MS) {
     return {
       ...restartMode,
       scheduled: false,
+    };
+  }
+
+  if (restartMode.kind === "pm2") {
+    setTimeout(async () => {
+      const pm2Name = getMainPm2ProcessName();
+      let result = await runCommand(getPm2Executable(), [
+        "restart",
+        pm2Name,
+        "--update-env",
+      ]);
+
+      if (!result.ok && pm2Name !== "fsociety-bot") {
+        result = await runCommand(getPm2Executable(), [
+          "restart",
+          "fsociety-bot",
+          "--update-env",
+        ]);
+      }
+
+      if (!result.ok) {
+        console.error(
+          "[UPDATE] No pude reiniciar por PM2:",
+          String(result?.stderr || result?.stdout || "sin detalle").trim()
+        );
+        process.exit(0);
+        return;
+      }
+
+      await runCommand(getPm2Executable(), ["save"]).catch(() => {});
+      process.exit(0);
+    }, Math.max(1000, Number(delayMs || RESTART_DELAY_MS))).unref?.();
+
+    return {
+      ...restartMode,
+      scheduled: true,
     };
   }
 

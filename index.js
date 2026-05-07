@@ -2668,6 +2668,17 @@ function getPm2Executable() {
   return process.platform === "win32" ? "pm2.cmd" : "pm2";
 }
 
+function getMainPm2ProcessName() {
+  const configured = String(
+    process.env.PM2_PROCESS_NAME ||
+      process.env.BOT_PM2_NAME ||
+      process.env.pm_name ||
+      process.env.name ||
+      ""
+  ).trim();
+  return configured || "fsociety-bot";
+}
+
 function getSplitProcessName(botId) {
   const normalized = normalizeProcessBotId(botId);
   if (normalized === "main") {
@@ -5535,6 +5546,49 @@ function scheduleProcessRestart(delayMs = PROCESS_RESTART_DELAY_MS) {
     return {
       ...restartMode,
       scheduled: false,
+    };
+  }
+
+  if (restartMode.kind === "pm2") {
+    const pm2Name = getMainPm2ProcessName();
+    setTimeout(async () => {
+      const restartResult = await runPm2Command(["restart", pm2Name, "--update-env"]);
+      if (!restartResult.ok && pm2Name !== "fsociety-bot") {
+        const fallbackResult = await runPm2Command([
+          "restart",
+          "fsociety-bot",
+          "--update-env",
+        ]);
+        if (!fallbackResult.ok) {
+          console.error(
+            `[RESTART] PM2 restart fallo (${pm2Name} / fsociety-bot):`,
+            String(
+              fallbackResult?.stderr ||
+                fallbackResult?.stdout ||
+                restartResult?.stderr ||
+                restartResult?.stdout ||
+                "sin detalle"
+            ).trim()
+          );
+          process.exit(0);
+          return;
+        }
+      } else if (!restartResult.ok) {
+        console.error(
+          "[RESTART] PM2 restart fallo:",
+          String(restartResult?.stderr || restartResult?.stdout || "sin detalle").trim()
+        );
+        process.exit(0);
+        return;
+      }
+
+      await runPm2Command(["save"]);
+      process.exit(0);
+    }, Math.max(1000, Number(delayMs || PROCESS_RESTART_DELAY_MS))).unref?.();
+
+    return {
+      ...restartMode,
+      scheduled: true,
     };
   }
 
