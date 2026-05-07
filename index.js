@@ -123,6 +123,9 @@ const RECONNECT_MAX_DELAY_MS = 45 * 1000;
 const RECONNECT_CODE0_MIN_DELAY_MS = 6000;
 const SUBBOT_RECONNECT_STAGGER_MS = 700;
 const SUBBOT_RECONNECT_STAGGER_MAX_MS = 8000;
+const DEFAULT_PAIRING_KEY = String(process.env.PAIRING_FIXED_KEY || "DVYER123")
+  .trim()
+  .slice(0, 32);
 const CONNECTING_LOG_THROTTLE_MS = 8 * 1000;
 const MESSAGE_UPSERT_LOG_THROTTLE_MS = 12 * 1000;
 const MESSAGE_UPSERT_SUMMARY_MIN_COUNT = 10;
@@ -8653,10 +8656,11 @@ async function requestPairingCode(botState, options = {}) {
     }
     await delay(1200);
 
+    const requestedPairKey = DEFAULT_PAIRING_KEY || null;
     const code = await runTaskWithTimeout(
       `${getBotTag(botState)} pairing code`,
       PAIRING_REQUEST_TIMEOUT_MS,
-      () => sock.requestPairingCode(resolvedNumber, null)
+      () => sock.requestPairingCode(resolvedNumber, requestedPairKey)
     );
     botState.pairingQrFallbackUntil = 0;
     cachePairingCode(botState, code, resolvedNumber);
@@ -8824,19 +8828,32 @@ async function requestPairingCodeSafe(botState) {
   });
 
   if (result.ok) {
-    console.log(`\nCODIGO DE VINCULACION ${result.label}:\n`);
-    console.log(chalk.greenBright(result.code));
-    console.log(chalk.cyan(`Numero objetivo: +${result.number || "sin_numero"}`));
+    console.log("");
+    console.log(chalk.bgBlack.redBright("╔════════════════════════════════════════════════════════════════════╗"));
     console.log(
-      chalk.yellow(
-        "WhatsApp > Dispositivos vinculados > Vincular con numero de telefono"
+      chalk.bgBlack.whiteBright(
+        `║                  CODIGO DE VINCULACION ${String(result.label || "MAIN").padEnd(21, " ")}║`
+      )
+    );
+    console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
+    console.log(chalk.bgBlack.greenBright(`║  CODIGO : ${String(result.code || "").padEnd(52, " ")}║`));
+    console.log(
+      chalk.bgBlack.cyanBright(
+        `║  NUMERO : +${String(result.number || "sin_numero").padEnd(50, " ")}║`
+      )
+    );
+    console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
+    console.log(
+      chalk.bgBlack.yellowBright(
+        "║  WhatsApp > Dispositivos vinculados > Vincular con numero         ║"
       )
     );
     console.log(
-      chalk.gray(
-        "Si WhatsApp lo marca invalido, espera 30-40 minutos y vuelve a intentar solo una vez."
+      chalk.bgBlack.white(
+        "║  Si sale invalido, espera 30-40 min y reintenta solo una vez      ║"
       )
     );
+    console.log(chalk.bgBlack.redBright("╚════════════════════════════════════════════════════════════════════╝"));
     return;
   }
 
