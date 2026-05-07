@@ -430,6 +430,20 @@ function cleanErrorText(error) {
   const normalized = text.toLowerCase();
 
   if (
+    normalized.includes("savetube") ||
+    normalized.includes("yt1s") ||
+    normalized.includes("internal ytmp3 error") ||
+    normalized.includes("no devolvio formatos mp3") ||
+    normalized.includes("no devolvió formatos mp3") ||
+    normalized.includes("youtube esta protegiendo este audio") ||
+    normalized.includes("youtube está protegiendo este audio") ||
+    normalized.includes("protected") ||
+    normalized.includes("copyright")
+  ) {
+    return "Audio no disponible en este momento. Puede estar protegido por YouTube, intenta más tarde.";
+  }
+
+  if (
     normalized.includes("rate-overlimit") ||
     normalized.includes("rate overlimit") ||
     normalized.includes("too many requests") ||
@@ -457,10 +471,10 @@ function cleanErrorText(error) {
     normalized.includes("service unavailable") ||
     normalized.includes("temporarily unavailable")
   ) {
-    return "El proveedor de audio esta temporalmente inestable. Reintenta en un momento.";
+    return "Servicio de audio temporalmente inestable. Reintenta en un momento.";
   }
 
-  return text;
+  return "Audio no disponible en este momento. Intenta nuevamente más tarde.";
 }
 
 function resolveAbsoluteUrl(value, baseUrl) {
