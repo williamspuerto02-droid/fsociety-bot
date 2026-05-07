@@ -10347,6 +10347,10 @@ async function iniciarInstanciaBot(config) {
               "401 persistente detectado. Ahora si reinicio auth porque parece sesion cerrada en WhatsApp."
             );
             removeAuthFolder(config.authFolder);
+            // Si la sesion guardada ya no sirve, reabrimos el selector interactivo
+            // para que el usuario elija QR o numero+codigo antes del siguiente intento.
+            runtimePairingMode = "";
+            await askPairingModeInConsole();
           }
 
           const reconnectDelay = getReconnectDelay(botState, {
