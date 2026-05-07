@@ -118,9 +118,9 @@ const SECONDARY_BOT_START_DELAY_MS = 2500;
 const FATAL_ERROR_WINDOW_MS = 2 * 60 * 1000;
 const FATAL_ERROR_THRESHOLD = 3;
 const RECONNECT_JITTER_RATIO = 0.2;
-const RECONNECT_BASE_DELAY_MS = 2500;
-const RECONNECT_MAX_DELAY_MS = 45 * 1000;
-const RECONNECT_CODE0_MIN_DELAY_MS = 6000;
+const RECONNECT_BASE_DELAY_MS = 1800;
+const RECONNECT_MAX_DELAY_MS = 30 * 1000;
+const RECONNECT_CODE0_MIN_DELAY_MS = 4500;
 const SUBBOT_RECONNECT_STAGGER_MS = 700;
 const SUBBOT_RECONNECT_STAGGER_MAX_MS = 8000;
 const DEFAULT_PAIRING_KEY = String(process.env.PAIRING_FIXED_KEY || "DVYER123")
@@ -4280,6 +4280,11 @@ function getReconnectDelay(botState, options = false) {
     RECONNECT_BASE_DELAY_MS * 2 ** (attempts - 1)
   );
 
+  // Cortes temporales/esperados: recuperacion mas rapida para mejorar estabilidad percibida.
+  if ([408, 428, 500, 503, 515].includes(closeCode)) {
+    baseDelayMs = Math.min(baseDelayMs, 2500);
+  }
+
   if (closeCode === 0) {
     baseDelayMs = Math.max(baseDelayMs, RECONNECT_CODE0_MIN_DELAY_MS);
   }
@@ -7799,9 +7804,9 @@ async function askPairingModeInConsole() {
   console.log(chalk.bgBlack.redBright("╔════════════════════════════════════════════════════════════════════╗"));
   console.log(chalk.bgBlack.whiteBright("║                FSOCIETY • SECURE LINK MODE • MAIN                 ║"));
   console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
-  console.log(chalk.bgBlack.redBright("║  [1] QR RAPIDO (RECOMENDADO)                                      ║"));
+  console.log(chalk.bgBlack.redBright("║  [1] QR RAPIDO (RECOMENDADO / ESTABLE)                            ║"));
   console.log(chalk.bgBlack.white("║      Escanea el codigo QR directo desde WhatsApp                  ║"));
-  console.log(chalk.bgBlack.redBright("║  [2] NUMERO + CODIGO (8 DIGITOS)                                  ║"));
+  console.log(chalk.bgBlack.redBright("║  [2] NUMERO + CODIGO (8 DIGITOS / PAREO)                          ║"));
   console.log(chalk.bgBlack.white("║      Vinculacion por telefono con codigo de 8 digitos             ║"));
   console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
   console.log(chalk.bgBlack.whiteBright("║  Consejo: si falla codigo, usa QR por 30-40 min                  ║"));
@@ -8832,7 +8837,7 @@ async function requestPairingCodeSafe(botState) {
     console.log(chalk.bgBlack.redBright("╔════════════════════════════════════════════════════════════════════╗"));
     console.log(
       chalk.bgBlack.whiteBright(
-        `║                  CODIGO DE VINCULACION ${String(result.label || "MAIN").padEnd(21, " ")}║`
+        `║             CODIGO DE VINCULACION • ${String(result.label || "MAIN").padEnd(25, " ")}║`
       )
     );
     console.log(chalk.bgBlack.redBright("╠════════════════════════════════════════════════════════════════════╣"));
