@@ -2492,12 +2492,14 @@ function formatCommandConsoleLog(commandData = {}, message = {}, from = "") {
     ? `grupo:${chatId || "desconocido"}`
     : `privado:${user}`;
   const requestId = String(commandData?.requestId || "").trim();
-  const deco = chalk.redBright("❅──────✧❅✦❅✧──────❅");
+  const decoLeft = chalk.redBright("❅──────✧❅✦❅✧──────❅.");
+  const decoRight = chalk.redBright("❅──────✧❅✦❅✧──────❅.");
+  const spacer = "                                                               ";
   const commandTag = chalk.redBright(`➤ ⌘ CMD: ${commandText}`);
   const userTag = chalk.whiteBright(`↳ 👤 USER: ${user}`);
   const scopeTag = chalk.redBright(`↳ 💬 CHAT: ${scope}`);
   const reqTag = requestId ? chalk.whiteBright(`↳ 🆔 RID: ${requestId}`) : "";
-  return [deco, commandTag, userTag, scopeTag, reqTag, deco]
+  return [decoLeft + spacer + decoRight, commandTag, userTag, scopeTag, reqTag, decoLeft + spacer + decoRight]
     .filter(Boolean)
     .join(chalk.bgBlack.redBright(" • "));
 }
@@ -3648,7 +3650,9 @@ function logBotEvent(value, level = "info", message = "", metadata = {}) {
   const extraText = requestId ? ` [${requestId}]` : "";
   const timeText = chalk.redBright(`[${formatLogTime()}]`);
   const tagText = chalk.whiteBright(`[${tag}]`);
-  const deco = chalk.bgBlack.redBright("❅──────✧❅✦❅✧──────❅");
+  const deco = chalk.bgBlack.redBright(
+    "❅──────✧❅✦❅✧──────❅.                                                               ❅──────✧❅✦❅✧──────❅."
+  );
 
   appendStructuredLog({
     ts: new Date().toISOString(),
