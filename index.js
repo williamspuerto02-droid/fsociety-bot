@@ -7899,6 +7899,12 @@ function shouldAutoRequestPairingCode(botState) {
     return false;
   }
 
+  if (String(botState?.config?.id || "").trim().toLowerCase() === "main") {
+    // MAIN no debe autopedir codigo por numero al arrancar;
+    // usar menu QR/CODIGO manual evita prompts inesperados.
+    return false;
+  }
+
   if (preferQrFirstMode()) {
     return false;
   }
@@ -10430,10 +10436,6 @@ async function start() {
   cleanupManagedTempRoots({
     maxAgeMs: 45 * 60 * 1000,
   });
-  if (canPromptInConsole()) {
-    printMaskPairingScreen();
-    console.log("");
-  }
   await cargarComandos();
   await banner();
   await askPairingModeInConsole();
