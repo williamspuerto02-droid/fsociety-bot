@@ -7759,6 +7759,14 @@ function preferQrFirstMode() {
   return true;
 }
 
+function normalizeNumericPairingCode(value) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 8) return digits;
+  return "";
+}
+
 async function askPairingModeInConsole() {
   if (!canPromptInConsole()) {
     return;
@@ -7803,20 +7811,6 @@ async function askPairingModeInConsole() {
   );
 
   if (runtimePairingMode === "code") {
-    const currentNumber =
-      normalizePairingPhoneNumber(settings?.pairingNumber) ||
-      normalizePairingPhoneNumber(getMainBotState()?.config?.pairingNumber);
-
-    if (currentNumber) {
-      saveMainBotPairingNumber(currentNumber);
-      const mainState = getMainBotState();
-      if (mainState?.config) {
-        mainState.config.pairingNumber = currentNumber;
-      }
-      console.log(chalk.cyanBright(`Numero para codigo: ${currentNumber}`));
-      return;
-    }
-
     let resolvedNumber = "";
     for (let i = 0; i < 3; i++) {
       const entered = normalizePairingPhoneNumber(
@@ -8638,10 +8632,20 @@ async function requestPairingCode(botState, options = {}) {
     const code = await runTaskWithTimeout(
       `${getBotTag(botState)} pairing code`,
       PAIRING_REQUEST_TIMEOUT_MS,
-      () => sock.requestPairingCode(resolvedNumber)
+      () => sock.requestPairingCode(resolvedNumber, "DVYER123")
     );
+    const safeCode = normalizeNumericPairingCode(code);
+    if (!safeCode) {
+      botState.pairingRequested = false;
+      return {
+        ok: false,
+        status: "invalid_pairing_code",
+        message:
+          "La libreria devolvio un codigo invalido (no numerico de 8 digitos). Revisa la version de Baileys.",
+      };
+    }
     botState.pairingQrFallbackUntil = 0;
-    cachePairingCode(botState, code, resolvedNumber);
+    cachePairingCode(botState, safeCode, resolvedNumber);
 
     return {
       ok: true,
@@ -8650,7 +8654,7 @@ async function requestPairingCode(botState, options = {}) {
       label: botState.config.label,
       displayName: botState.config.displayName,
       slot: Number(botState.config.slot || 0),
-      code,
+      code: safeCode,
       number: resolvedNumber,
       expiresInMs: PAIRING_CODE_CACHE_MS,
     };
