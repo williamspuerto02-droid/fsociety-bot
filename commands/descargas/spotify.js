@@ -19,7 +19,7 @@ const AUDIO_QUALITY = "128k";
 const REQUEST_TIMEOUT = 45000;
 const SEARCH_REQUEST_TIMEOUT = 15000;
 const MAX_AUDIO_BYTES = 120 * 1024 * 1024;
-const AUDIO_AS_DOCUMENT_THRESHOLD = 60 * 1024 * 1024;
+const AUDIO_AS_DOCUMENT_THRESHOLD = 16 * 1024 * 1024;
 
 const cooldowns = new Map();
 
@@ -53,6 +53,35 @@ function clipText(value = "", max = 72) {
   const normalized = cleanText(value);
   if (normalized.length <= max) return normalized;
   return `${normalized.slice(0, Math.max(1, max - 3))}...`;
+}
+
+function parseDurationSeconds(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.max(1, Math.floor(numeric));
+  }
+
+  const text = cleanText(value);
+  if (!text) return 0;
+
+  if (/^\d+$/.test(text)) {
+    return Math.max(1, Math.floor(Number(text)));
+  }
+
+  const parts = text
+    .split(":")
+    .map((part) => Number(String(part || "").trim()))
+    .filter((part) => Number.isFinite(part) && part >= 0);
+
+  if (parts.length < 2 || parts.length > 3) return 0;
+
+  if (parts.length === 2) {
+    const [m, s] = parts;
+    return Math.max(1, m * 60 + s);
+  }
+
+  const [h, m, s] = parts;
+  return Math.max(1, h * 3600 + m * 60 + s);
 }
 
 function normalizeAudioFileName(name, fallbackBase = "spotify", fallbackExt = "mp3") {
@@ -459,9 +488,10 @@ async function convertToMp3(inputPath, outputPath) {
 
 // ============ ENVÍO DE AUDIO ============
 
-async function sendSpotifyAudio(sock, from, quoted, { filePath, fileName, mimetype, title, artist, size, forceDocument = false }) {
+async function sendSpotifyAudio(sock, from, quoted, { filePath, fileName, mimetype, title, artist, size, duration = null, forceDocument = false }) {
   const artistLabel = cleanText(artist || "Spotify") || "Spotify";
   const shouldSendDocument = forceDocument || size > AUDIO_AS_DOCUMENT_THRESHOLD;
+  const seconds = parseDurationSeconds(duration);
 
   try {
     console.log(`[SPOTIFY] Enviando como ${shouldSendDocument ? "documento" : "audio"}...`);
@@ -480,13 +510,19 @@ async function sendSpotifyAudio(sock, from, quoted, { filePath, fileName, mimety
       return "document";
     }
 
+    let audioBuffer = null;
+    try {
+      audioBuffer = fs.readFileSync(filePath);
+    } catch {}
+
     await sock.sendMessage(
       from,
       {
-        audio: { url: filePath },
+        audio: audioBuffer || { url: filePath },
         mimetype: mimetype || "audio/mpeg",
         ptt: false,
         fileName,
+        ...(seconds > 0 ? { seconds } : {}),
       },
       quoted
     );
@@ -717,6 +753,7 @@ export default {
         title: info.title,
         artist: info.artist,
         size: downloaded.size,
+        duration: info.duration,
       });
 
     } catch (error) {

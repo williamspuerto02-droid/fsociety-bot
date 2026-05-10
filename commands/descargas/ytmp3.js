@@ -35,7 +35,7 @@ const REQUEST_TIMEOUT = 20 * 60 * 1000;
 const API_LINK_TIMEOUT = 90_000;
 
 const MAX_AUDIO_BYTES = 800 * 1024 * 1024;
-const AUDIO_AS_DOCUMENT_THRESHOLD = 80 * 1024 * 1024;
+const AUDIO_AS_DOCUMENT_THRESHOLD = 16 * 1024 * 1024;
 const MIN_AUDIO_BYTES = 20 * 1024;
 
 const RATE_LIMIT_MAX = 6;
@@ -185,6 +185,37 @@ function formatDuration(seconds = 0) {
   }
 
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function parseDurationSeconds(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.max(1, Math.floor(numeric));
+  }
+
+  const text = cleanText(value);
+  if (!text) return 0;
+
+  if (/^\d+$/.test(text)) {
+    return Math.max(1, Math.floor(Number(text)));
+  }
+
+  const parts = text
+    .split(":")
+    .map((part) => Number(String(part || "").trim()))
+    .filter((part) => Number.isFinite(part) && part >= 0);
+
+  if (parts.length < 2 || parts.length > 3) {
+    return 0;
+  }
+
+  if (parts.length === 2) {
+    const [m, s] = parts;
+    return Math.max(1, m * 60 + s);
+  }
+
+  const [h, m, s] = parts;
+  return Math.max(1, h * 3600 + m * 60 + s);
 }
 
 function safeFileName(name) {
@@ -901,22 +932,63 @@ function buildAudioContextInfo(data, thumbBuffer) {
   };
 }
 
+function buildAudioPayload(data, options = {}) {
+  const {
+    thumbBuffer = null,
+    contextInfo = null,
+    plain = false,
+    source = null,
+  } = options;
+
+  const seconds = parseDurationSeconds(data?.duration);
+  const payload = {
+    audio: source || { url: data?.remoteUrl || data?.tempPath },
+    mimetype: "audio/mpeg",
+    fileName: data?.fileName,
+    ptt: false,
+  };
+
+  if (seconds > 0) {
+    payload.seconds = seconds;
+  }
+
+  if (!plain) {
+    if (thumbBuffer) {
+      payload.jpegThumbnail = thumbBuffer;
+    }
+    if (contextInfo) {
+      payload.contextInfo = contextInfo;
+    }
+  }
+
+  return payload;
+}
+
 async function sendRemoteMp3(sock, chatId, quoted, data) {
   const thumbBuffer = await fetchAudioThumbnailBuffer(data?.thumbnail);
   const contextInfo = buildAudioContextInfo(data, thumbBuffer);
 
-  await sock.sendMessage(
-    chatId,
-    {
-      audio: { url: data.remoteUrl },
-      mimetype: "audio/mpeg",
-      fileName: data.fileName,
-      ptt: false,
-      ...(thumbBuffer ? { jpegThumbnail: thumbBuffer } : {}),
-      contextInfo,
-    },
-    quoted
-  );
+  try {
+    await sock.sendMessage(
+      chatId,
+      buildAudioPayload(data, {
+        thumbBuffer,
+        contextInfo,
+        source: { url: data.remoteUrl },
+      }),
+      quoted
+    );
+  } catch (error) {
+    console.warn("SEND REMOTE AUDIO RICH ERROR:", error?.message || error);
+    await sock.sendMessage(
+      chatId,
+      buildAudioPayload(data, {
+        plain: true,
+        source: { url: data.remoteUrl },
+      }),
+      quoted
+    );
+  }
 
   return "audio";
 }
@@ -929,20 +1001,31 @@ async function sendLocalMp3(sock, chatId, quoted, data) {
     try {
       await sock.sendMessage(
         chatId,
-        {
-          audio: { url: data.tempPath },
-          mimetype: "audio/mpeg",
-          fileName: data.fileName,
-          ptt: false,
-          ...(thumbBuffer ? { jpegThumbnail: thumbBuffer } : {}),
+        buildAudioPayload(data, {
+          thumbBuffer,
           contextInfo,
-        },
+          source: { url: data.tempPath },
+        }),
         quoted
       );
 
       return "audio";
     } catch (error) {
       console.error("SEND LOCAL AUDIO ERROR:", error?.message || error);
+
+      try {
+        await sock.sendMessage(
+          chatId,
+          buildAudioPayload(data, {
+            plain: true,
+            source: { url: data.tempPath },
+          }),
+          quoted
+        );
+        return "audio";
+      } catch (plainError) {
+        console.error("SEND LOCAL AUDIO PLAIN ERROR:", plainError?.message || plainError);
+      }
     }
   }
 
