@@ -1,14 +1,9 @@
 import axios from "axios";
 import yts from "yt-search";
 
-const APIS = [
-  "https://dv-yer-api.online/ytmp3",
-  "https://dvyer-api.onrender.com/ytmp3",
-];
-
+const API = "https://dv-yer-api.online/ytmp3";
 const APIKEY = "dvyer911840240197";
 
-// Evita duplicados si el comando se ejecuta 2 veces
 const running = new Set();
 
 function cleanText(txt = "") {
@@ -20,8 +15,14 @@ function getChatId(ctx) {
   return msg?.key?.remoteJid || ctx.chat || ctx.from || "";
 }
 
+function getSender(ctx) {
+  const msg = ctx.m || ctx.msg || {};
+  return msg.sender || ctx.sender || msg?.key?.participant || msg?.key?.remoteJid || "";
+}
+
 function getInput(ctx) {
   const msg = ctx.m || ctx.msg || {};
+
   return cleanText(
     Array.isArray(ctx.args)
       ? ctx.args.join(" ")
@@ -29,21 +30,18 @@ function getInput(ctx) {
   );
 }
 
-function getSender(ctx) {
-  const msg = ctx.m || ctx.msg || {};
-  return msg.sender || ctx.sender || msg?.key?.participant || msg?.key?.remoteJid || "";
-}
-
 function getYoutubeUrl(text = "") {
   const match = String(text).match(
     /https?:\/\/(?:www\.)?(youtube\.com|youtu\.be)\/[^\s]+/i
   );
+
   return match ? match[0] : "";
 }
 
 function getYoutubeId(url = "") {
   try {
     const u = new URL(url);
+
     if (u.hostname.includes("youtu.be")) {
       return u.pathname.replace("/", "").split("?")[0];
     }
@@ -77,7 +75,9 @@ async function getVideoInfo(input) {
   const search = await yts(input);
   const video = search?.videos?.[0];
 
-  if (!video?.url) throw new Error("No encontré esa canción en YouTube.");
+  if (!video?.url) {
+    throw new Error("No encontré esa canción en YouTube.");
+  }
 
   return {
     url: video.url,
@@ -108,7 +108,7 @@ function pickTitle(data = {}, fallback = "YouTube MP3") {
   return (
     data.title ||
     data.result?.title ||
-    data.filename?.replace(/\.mp3$/i, "") ||
+    String(data.filename || "").replace(/\.mp3$/i, "") ||
     fallback ||
     "YouTube MP3"
   );
@@ -136,7 +136,7 @@ function cleanFileName(name = "audio") {
   );
 }
 
-function publicError(error) {
+function cleanError(error) {
   const msg = String(error?.message || error || "").toLowerCase();
 
   if (
@@ -146,6 +146,7 @@ function publicError(error) {
     msg.includes("socket") ||
     msg.includes("timeout") ||
     msg.includes("443") ||
+    msg.includes("194.") ||
     msg.includes("http")
   ) {
     return "La API de música está caída o saturada. Intenta otra vez en un momento.";
@@ -161,14 +162,18 @@ function publicError(error) {
 async function react(sock, msg, emoji) {
   try {
     if (!msg?.key) return;
+
     await sock.sendMessage(msg.key.remoteJid, {
-      react: { text: emoji, key: msg.key },
+      react: {
+        text: emoji,
+        key: msg.key,
+      },
     });
   } catch {}
 }
 
 async function getBuffer(url) {
-  if (!/^https?:\/\//i.test(url)) return null;
+  if (!/^https?:\/\//i.test(String(url || ""))) return null;
 
   try {
     const res = await axios.get(url, {
@@ -178,7 +183,7 @@ async function getBuffer(url) {
         "User-Agent": "Mozilla/5.0",
         Accept: "image/*",
       },
-      maxContentLength: 300 * 1024,
+      maxContentLength: 350 * 1024,
     });
 
     return Buffer.from(res.data);
@@ -188,41 +193,34 @@ async function getBuffer(url) {
 }
 
 async function callApi(videoUrl) {
-  let lastError = null;
+  const { data } = await axios.get(API, {
+    timeout: 120000,
+    params: {
+      mode: "link",
+      url: videoUrl,
+      apikey: APIKEY,
+    },
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json",
+    },
+  });
 
-  for (const api of APIS) {
-    try {
-      const { data } = await axios.get(api, {
-        timeout: 120000,
-        params: {
-          mode: "link",
-          url: videoUrl,
-          apikey: APIKEY,
-        },
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          Accept: "application/json",
-        },
-      });
+  const audioUrl = pickAudioUrl(data);
 
-      const audioUrl = pickAudioUrl(data);
-      if (!audioUrl) throw new Error("La API no devolvió audio.");
-
-      return data;
-    } catch (e) {
-      lastError = e;
-      console.log("YTMP3 API falló:", api);
-    }
+  if (!audioUrl) {
+    console.log("Respuesta API ytmp3:", data);
+    throw new Error("La API no devolvió audio.");
   }
 
-  throw lastError || new Error("API no disponible.");
+  return data;
 }
 
 export default {
   command: ["ytmp3", "yta", "ytaudio"],
   categoria: "descarga",
   category: "descarga",
-  description: "Descarga música MP3 de YouTube",
+  description: "Descarga música MP3 de YouTube con portada",
 
   run: async (ctx) => {
     const { sock } = ctx;
@@ -230,8 +228,8 @@ export default {
     const chatId = getChatId(ctx);
     const sender = getSender(ctx);
     const quoted = msg?.key ? { quoted: msg } : undefined;
-
     const input = getInput(ctx);
+
     const lockKey = `${chatId}:${sender}:${input.toLowerCase()}`;
 
     try {
@@ -266,7 +264,7 @@ export default {
       const audioUrl = pickAudioUrl(data);
       const title = cleanFileName(pickTitle(data, video.title));
       const thumbnailUrl = pickThumbnail(data, video.thumbnail || youtubeThumb(video.url));
-      const thumbBuffer = await getBuffer(thumbnailUrl);
+      const thumbnailBuffer = await getBuffer(thumbnailUrl);
 
       await sock.sendMessage(
         chatId,
@@ -275,7 +273,11 @@ export default {
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`,
           ptt: false,
-          jpegThumbnail: thumbBuffer || undefined,
+
+          // Portada pequeña en el audio
+          jpegThumbnail: thumbnailBuffer || undefined,
+
+          // Portada grande junto al audio
           contextInfo: {
             externalAdReply: {
               title,
@@ -285,7 +287,7 @@ export default {
               showAdAttribution: false,
               sourceUrl: video.url,
               thumbnailUrl,
-              thumbnail: thumbBuffer || undefined,
+              thumbnail: thumbnailBuffer || undefined,
             },
           },
         },
@@ -293,8 +295,8 @@ export default {
       );
 
       await react(sock, msg, "✅");
-    } catch (e) {
-      console.error("YTMP3 ERROR:", e?.response?.data || e?.message || e);
+    } catch (error) {
+      console.error("YTMP3 ERROR:", error?.response?.data || error?.message || error);
 
       await react(sock, msg, "❌");
 
@@ -303,7 +305,7 @@ export default {
         {
           text:
             "╭━━〔 *❌ YTMP3 ERROR* 〕━━⬣\n" +
-            `┃ ${publicError(e)}\n` +
+            `┃ ${cleanError(error)}\n` +
             "╰━━━━━━━━━━━━━━━━━━⬣",
           ...global.channelInfo,
         },
