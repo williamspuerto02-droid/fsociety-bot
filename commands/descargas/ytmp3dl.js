@@ -95,6 +95,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
 handler.help = ["ytmp3 <url>"];
 handler.tags = ["descargas"];
-handler.command = ["ytmp3", "yta", "ytaudio"];
+handler.command = ["ytmp5"];
 
 export default handler;
