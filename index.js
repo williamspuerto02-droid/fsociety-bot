@@ -7888,10 +7888,18 @@ async function askPairingModeInConsole() {
   }
 
   if (!canPromptInConsole()) {
-    runtimePairingMode = "qr";
+    const mainState = getMainBotState();
+    const mainConfig = mainState?.config || buildMainBotConfig(settings);
+    const configuredNumber = sanitizePhoneNumber(
+      mainConfig?.pairingNumber || settings?.pairingNumber || process.env.PAIRING_NUMBER || ""
+    );
+
+    runtimePairingMode = configuredNumber ? "code" : "qr";
     console.log(
       chalk.yellowBright(
-        "[PAIRING] Sin consola interactiva (PM2). Usando modo QR por defecto."
+        configuredNumber
+          ? "[PAIRING] Sin consola interactiva (PM2). Detecte pairingNumber y usare modo CODIGO automaticamente."
+          : "[PAIRING] Sin consola interactiva (PM2). Usando modo QR por defecto."
       )
     );
     return;
