@@ -1,9 +1,36 @@
+import fs from "fs";
+import path from "path";
 import yts from "yt-search";
 import { chargeDownloadRequest, refundDownloadCharge } from "../economia/download-access.js";
 import { sanitizeProviderMessage } from "./_errorMessages.js";
 
 const RESULT_LIMIT = 5;
 const DEFAULT_CAROUSEL_COVER = "https://i.ibb.co/5xrnyZhN/fsociety-bot-profile.png";
+const BAILEYS_MESSAGES_FILE = path.join(
+  process.cwd(),
+  "node_modules",
+  "@dvyer",
+  "baileys",
+  "lib",
+  "Utils",
+  "messages.js"
+);
+
+function supportsBaileysCards() {
+  try {
+    if (!fs.existsSync(BAILEYS_MESSAGES_FILE)) return false;
+    const source = fs.readFileSync(BAILEYS_MESSAGES_FILE, "utf8");
+    return (
+      source.includes("carouselMessage") ||
+      source.includes("'cards' in message") ||
+      source.includes("\"cards\" in message")
+    );
+  } catch {
+    return false;
+  }
+}
+
+const SUPPORTS_BAILEYS_CARDS = supportsBaileysCards();
 
 function getPrefix(settings) {
   if (Array.isArray(settings?.prefix)) {
@@ -206,6 +233,10 @@ function buildResultRows(results, prefix, format) {
 }
 
 async function sendCarouselResults(sock, from, quoted, query, results, prefix) {
+  if (!SUPPORTS_BAILEYS_CARDS) {
+    throw new Error("baileys_cards_not_supported");
+  }
+
   const basePayload = {
     text: "YouTube-Buscador ««┐",
     footer: `Resultados para: ${clipText(query, 80)}`,
