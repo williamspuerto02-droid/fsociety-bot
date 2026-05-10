@@ -38,29 +38,6 @@ function getYoutubeUrl(text = "") {
   return match ? match[0] : "";
 }
 
-function getYoutubeId(url = "") {
-  try {
-    const u = new URL(url);
-
-    if (u.hostname.includes("youtu.be")) {
-      return u.pathname.replace("/", "").split("?")[0];
-    }
-
-    const id = u.searchParams.get("v");
-    if (id) return id;
-
-    const match = u.pathname.match(/\/(?:shorts|live|embed)\/([a-zA-Z0-9_-]{11})/);
-    return match?.[1] || "";
-  } catch {
-    return "";
-  }
-}
-
-function youtubeThumb(url = "") {
-  const id = getYoutubeId(url);
-  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
-}
-
 async function getVideoInfo(input) {
   const directUrl = getYoutubeUrl(input);
 
@@ -68,7 +45,6 @@ async function getVideoInfo(input) {
     return {
       url: directUrl,
       title: "YouTube MP3",
-      thumbnail: youtubeThumb(directUrl),
     };
   }
 
@@ -82,7 +58,6 @@ async function getVideoInfo(input) {
   return {
     url: video.url,
     title: video.title || "YouTube MP3",
-    thumbnail: video.thumbnail || youtubeThumb(video.url),
   };
 }
 
@@ -111,17 +86,6 @@ function pickTitle(data = {}, fallback = "YouTube MP3") {
     String(data.filename || "").replace(/\.mp3$/i, "") ||
     fallback ||
     "YouTube MP3"
-  );
-}
-
-function pickThumbnail(data = {}, fallback = "") {
-  return (
-    data.thumbnail ||
-    data.result?.thumbnail ||
-    data.image ||
-    data.result?.image ||
-    fallback ||
-    ""
   );
 }
 
@@ -172,26 +136,6 @@ async function react(sock, msg, emoji) {
   } catch {}
 }
 
-async function getBuffer(url) {
-  if (!/^https?:\/\//i.test(String(url || ""))) return null;
-
-  try {
-    const res = await axios.get(url, {
-      responseType: "arraybuffer",
-      timeout: 10000,
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        Accept: "image/*",
-      },
-      maxContentLength: 350 * 1024,
-    });
-
-    return Buffer.from(res.data);
-  } catch {
-    return null;
-  }
-}
-
 async function callApi(videoUrl) {
   const { data } = await axios.get(API, {
     timeout: 120000,
@@ -220,7 +164,7 @@ export default {
   command: ["ytmp3", "yta", "ytaudio"],
   categoria: "descarga",
   category: "descarga",
-  description: "Descarga música MP3 de YouTube con portada",
+  description: "Descarga música MP3 de YouTube",
 
   run: async (ctx) => {
     const { sock } = ctx;
@@ -263,8 +207,6 @@ export default {
 
       const audioUrl = pickAudioUrl(data);
       const title = cleanFileName(pickTitle(data, video.title));
-      const thumbnailUrl = pickThumbnail(data, video.thumbnail || youtubeThumb(video.url));
-      const thumbnailBuffer = await getBuffer(thumbnailUrl);
 
       await sock.sendMessage(
         chatId,
@@ -273,23 +215,6 @@ export default {
           mimetype: "audio/mpeg",
           fileName: `${title}.mp3`,
           ptt: false,
-
-          // Portada pequeña en el audio
-          jpegThumbnail: thumbnailBuffer || undefined,
-
-          // Portada grande junto al audio
-          contextInfo: {
-            externalAdReply: {
-              title,
-              body: "Audio MP3",
-              mediaType: 1,
-              renderLargerThumbnail: true,
-              showAdAttribution: false,
-              sourceUrl: video.url,
-              thumbnailUrl,
-              thumbnail: thumbnailBuffer || undefined,
-            },
-          },
         },
         quoted
       );
